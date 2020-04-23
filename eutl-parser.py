@@ -14,9 +14,11 @@ import traceback
 import ssl
 import os
 import xml.etree.ElementTree as ET
+import base64
 from enum import Enum, unique
-# from string import maketrans
-
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
 # import lxml.etree as LXML
 
 NS1 = "{http://uri.etsi.org/02231/v2#}"
@@ -27,7 +29,6 @@ NS5 = "{http://uri.etsi.org/TrstSvc/SvcInfoExt/eSigDir-1999-93-EC-TrustedList/#}
 NS6 = "{http://uri.etsi.org/01903/v1.4.1#}"
 NS_EN = "{en}"
 NS_RO = "{ro}"
-
 
 class StringEnumType(Enum):
     @classmethod
@@ -75,6 +76,13 @@ class TspStatusType(StringEnumType):
     Granted = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted"
     Withdrawn = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/withdrawn"
 
+@unique
+class ListStatus(Enum):
+    Success = 0
+    NotDownloaded = 1
+    StructureError = 2
+    SignatureNotValid = 3
+
 def get_tsp_status_type(strStatus):
     if(strStatus == TspStatusType.NationalLevelRecognised.value):
         return TspStatusType.NationalLevelRecognised
@@ -91,27 +99,26 @@ def url_remote_file_name(url):
 
 def download_file(rPath, lPath, force):
     if(lPath.exists()):
-        print("File", lPath, "exists", end="")
+        msg = "File {0} exists; {1}".format(
+            lPath, "it will be overwritten" if force else "it will NOT be downloaded again")
+        Logger.LogInfo(msg)
+
         if(force):
-            print("; it will be overwritten")
             os.remove(lPath)
         else:
-            print("; it will NOT be downloaded again")
-            return
+            return True
 
     req = urllib.request.Request(rPath)
-
     req.add_header(
         'User-Agent', "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.2 Safari/605.1.15")
-
     # sslcontext = ssl.create_default_context()
 
     resp = urllib.request.urlopen(req)
-    print("Downloading file ", rPath, "...")
+    Logger.LogInfo("Downloading file {0} ...".format(rPath) )
     data = resp.read()
     lFile = open(lPath, 'xb')
     lFile.write(data)
-    print("File successfully downloaded.")
+    Logger.LogInfo( "File {0} successfully downloaded.".format(lPath) )
 
 
 class Options:
@@ -152,6 +159,27 @@ class Options:
             --workingdir    local working directory
             ''')
 
+class Logger:
+    @staticmethod
+    def LogError(msg):
+        print("ERROR: ", msg)
+
+    @staticmethod
+    def LogInfo(msg):
+        print("INFO: ", msg)
+
+    @staticmethod
+    def LogException(msg, ex):
+        print("ERROR: {0}: {1}".format(msg, ex))
+
+    @staticmethod
+    def LogExceptionTrace(msg, ex):
+        print("ERROR: ", msg)
+        print('-'*60)
+        traceback.print_exc(file=sys.stdout)
+        print('-'*60)
+
+
 class Certificate:
     def __init__(self, subject, value):
         self.Subject = subject
@@ -182,14 +210,14 @@ class TrustList:
     xpOtherTL = "{0}SchemeInformation/{0}PointersToOtherTSL/{0}OtherTSLPointer".format(NS1)
     xpTsps = "{0}TrustServiceProviderList/{0}TrustServiceProvider".format(NS1)
 
-    def __init__(self, Url, mime):
+    def __init__(self, Url, mime, country):
         self.UrlLocation = Url
         self.LocalPath = None
-        self.LocalName = url_remote_file_name(self.UrlLocation)
+        self.LocalName = country + "-" + url_remote_file_name(self.UrlLocation) # add country code in front if the name: some lists have the same name
         self.Version = None
         self.SeqNumber = None
         self.OperatorName = None
-        self.OperatorTeritory = None
+        self.OperatorTeritory = country
         self.MimeType = mime
         self.TSLType = None
         self.NextUpdate = None
@@ -201,6 +229,7 @@ class TrustList:
         self.ChildrenGenericCount = 0
         self.ChildrenLOTLCount = 0
         self.ChildrenPdfCount = 0
+        self.Status = ListStatus.NotDownloaded
 
     def Update(self, localwd, force):
         self.Download(localwd, force)
@@ -212,9 +241,18 @@ class TrustList:
         self.ForceDownload = force
         self.LocalWD = localwd
         self.LocalPath = localwd / self.LocalName
-        download_file(self.UrlLocation, self.LocalPath, force)
-    
+        try:
+            download_file(self.UrlLocation, self.LocalPath, force)
+            self.Status = ListStatus.Success
+        except Exception as ex:
+            self.Status = ListStatus.NotDownloaded
+            Logger.LogException("Failed to download list {0}".format(self.UrlLocation), ex)
+
     def Parse(self):
+        if( self.Status != ListStatus.Success):
+            Logger.LogInfo("Will not parse list {0}: Staus is {1} ".format(self.LocalName, self.Status))
+            return False
+
         if( self.MimeType == MimeType.Pdf):
             self.TSLType = TrustListType.Pdf
             return False
@@ -252,7 +290,9 @@ class TrustList:
         for tl in otls:
             url = tl.find("{0}TSLLocation".format(NS1)).text
             mime = tl.find(".//{0}MimeType".format(NS4)).text
-            trustList = TrustList(url, MimeType.get_type_from_string(mime))
+            country = tl.find(
+                "{0}AdditionalInformation//{0}SchemeTerritory".format(NS1)).text
+            trustList = TrustList(url, MimeType.get_type_from_string(mime), country)
             if(self.UrlLocation == url):
                 continue
             self.ListsOfTrust.append(trustList)
@@ -303,6 +343,8 @@ class TrustList:
         self.ChildrenLOTLCount = 0
         if(self.TSLType == TrustListType.ListOfTheLists or self.TSLType == TrustListType.ListOfLists):
             for lot in self.ListsOfTrust:
+                if( lot.MimeType != MimeType.Xml):
+                    continue
                 lot.Download(self.LocalWD, self.ForceDownload)
                 lot.Parse()
                 if(lot.TSLType == TrustListType.ListOfTheLists or lot.TSLType == TrustListType.ListOfLists):
@@ -311,7 +353,6 @@ class TrustList:
                     self.ChildrenGenericCount += 1
                 elif(lot.MimeType == MimeType.Pdf):
                     self.ChildrenPdfCount += 1
-                # lot.Print()
 
     def Print(self):
         print("\n{0}: {1}\n\tFile: {2}\n\tUrl: {3}\n\tVersion: {4}\n\tSeqNumber: {5}\n\tNextUpdate: {6}\n\tListType: {7}\
@@ -352,6 +393,7 @@ class TrustList:
 
         
 options = Options()
+options.workingDir = pathlib.Path("./.download")
 
 def check_preconditions():
     if not options.workingDir.is_dir():
@@ -364,17 +406,6 @@ def check_preconditions():
     #     os.makedirs(options.localUnTrustCertPath())
     return True
 
-
-def organize_service_providers(eu_tl):
-    all_services = {}
-    for tlist in eu_tl.ListsOfTrust:
-        for svc_prov in tlist.TSPs:
-            for service in svc_prov.Services:
-                if (all_services.get(service.Type, None) == None):
-                    all_services[service.Type] = []
-                all_services[service.Type].append(service)
-    return all_services
-
 def save_certificates_on_disk(services, base_dir):
 
     table_replace = {
@@ -386,6 +417,8 @@ def save_certificates_on_disk(services, base_dir):
         '\\': '_',
         ',': '_',
         '.': '_',
+        ';': '_',
+        ':': '_',
     }
     trantab = str.maketrans("() =/.,\\", "________")
 
@@ -393,39 +426,46 @@ def save_certificates_on_disk(services, base_dir):
         if(not service.Type or not service.Certificate.Value):
             continue
         svc_type_path = base_dir / service.Type.name
-        file_name = service.Country + "_" + service.Name.translate(trantab)
-        file_path = svc_type_path / file_name
-        # file_path.suffix = "pem"
-
         if not svc_type_path.is_dir():
             os.makedirs(svc_type_path)
 
         if service.Certificate.Value:
-            with open(file_path, "w") as cert_file:
-                cert_file.write(service.Certificate.Value)
+            certBytes = base64.b64decode(service.Certificate.Value)
+            Cert_x509 = x509.load_der_x509_certificate(
+                certBytes, default_backend())
 
+            certFingerprintPrefix = Cert_x509.fingerprint(hashes.SHA1()).hex()[0:10]
+            file_name = service.Country + "_" + \
+                service.Name.translate(trantab) + "_" + \
+                certFingerprintPrefix + ".cer"
+            file_path = svc_type_path / file_name
+
+            with open(file_path, "wb") as cert_file:
+                cert_file.write(certBytes)
 
 def main(argv):
     options.parseCommandLine(argv)
     if not check_preconditions():
-        print("main: preconditions not satisfied, exiting.")
+        Logger.LogError("main: preconditions not satisfied, exiting.")
         return
 
     try:
-        EuTL = TrustList(options.urlLotl, MimeType.Xml)
+        EuTL = TrustList(options.urlLotl, MimeType.Xml, "EU")
         EuTL.Update(options.localTListPath(), options.force)
         EuTL.DownloadChildren()
-        EuTL.Print()
+        # EuTL.Print()
 
         all_services = EuTL.GetAllServices()
         save_certificates_on_disk(all_services, options.localTrustCertPath() )
 
+        Logger.LogInfo("Found {0} trust service providers and {1} services.".format(
+            sum(len(x.TSPs) for x in EuTL.ListsOfTrust),
+            len(all_services)))
+
         return True
     except Exception as ex:
-        print("main: Got an error")
-        print('-'*60)
-        traceback.print_exc(file=sys.stdout)
-        print('-'*60)
+        Logger.LogExceptionTrace("main: Got an error", ex)
+
 
 if __name__ == '__main__':
     main(sys.argv[1:])

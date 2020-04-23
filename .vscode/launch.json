@@ -19,7 +19,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--workingdir",
-                "/tmp/eutl-parser"
+                "./.download"
             ]
         }
     ]
