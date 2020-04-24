@@ -1,8 +1,16 @@
+'''
+    @author: George Gugulea
+    @author_email: george.gugulea@certsign.ro
+    @date: 01.11.2019
+    @description: Download European Trust Lists and parse it to obtain containing certificates
+                    It all starts from the root of the lists: 'https://ec.europa.eu/tools/lotl/eu-lotl.xml'
+'''
 from enum import Enum, unique
 import xml.etree.ElementTree as ET
 import urllib.request
-from logger import Logger
 import os
+import ssl
+from logger import Logger
 
 def get_text_or_none(node):
     if(node != None):
@@ -30,15 +38,12 @@ def download_file(rPath, lPath, force):
     req = urllib.request.Request(rPath)
     req.add_header(
         'User-Agent', "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.2 Safari/605.1.15")
-    # sslcontext = ssl.create_default_context()
+    sslcontext = ssl.SSLContext(ssl.PROTOCOL_TLS)
 
-    resp = urllib.request.urlopen(req)
-    Logger.LogInfo("Downloading file {0} ...".format(rPath))
+    resp = urllib.request.urlopen(url=req, context=sslcontext)
     data = resp.read()
     lFile = open(lPath, 'xb')
     lFile.write(data)
-    Logger.LogInfo("File {0} successfully downloaded.".format(lPath))
-
 
 
 class StringEnumType(Enum):
@@ -47,6 +52,7 @@ class StringEnumType(Enum):
         for name, member in cls.__members__.items():
             if(member.value == str_value):
                 return member
+
 
 @unique
 class EutlNS(StringEnumType):
@@ -70,7 +76,7 @@ class MimeType(StringEnumType):
 class TrustListType(StringEnumType):
     ListOfTheLists = "http://uri.etsi.org/TrstSvc/TrustedList/TSLType/EUlistofthelists"
     Generic = "http://uri.etsi.org/TrstSvc/TrustedList/TSLType/EUgeneric"
-    ListOfLists = "???"  # does this exist?
+    GenericNonEU = "http://uri.etsi.org/TrstSvc/TrustedList/TSLType/CClist"
     Pdf = "== Some Pdf List Type =="
 
 
@@ -184,9 +190,10 @@ class TrustList:
         self.LocalWD = localwd
         self.LocalPath = localwd / self.LocalName
         try:
+            Logger.LogInfo("Downloading file {0} ...".format(self.UrlLocation))
             download_file(self.UrlLocation, self.LocalPath, force)
             self.Status = ListStatus.Success
-        except Exception as ex:
+        except urllib.error.URLError as ex:
             self.Status = ListStatus.NotDownloaded
             Logger.LogException(
                 "Failed to download list {0}".format(self.UrlLocation), ex)
@@ -199,6 +206,7 @@ class TrustList:
 
         if(self.MimeType == MimeType.Pdf):
             self.TSLType = TrustListType.Pdf
+            Logger.LogInfo("Ignoring file {0}".format(self.LocalName))
             return False
 
         tree = ET.parse(self.LocalPath)
@@ -206,14 +214,19 @@ class TrustList:
         node = tree.find(TrustList.xpOperatorTeritory)
         self.OperatorTeritory = node.text
 
-        node = tree.find(TrustList.xpNextUpdate)
-        self.NextUpdate = node.text
-
         node = tree.find(TrustList.xpVersion)
         self.Version = node.text
 
+        if( self.Version != "5" ):
+            Logger.logError("Will not parse list {0}. it has an unknown version {1}".format(
+                self.LocalName, self.Version))
+            return False
+
         node = tree.find(TrustList.xpSqNumber)
         self.SeqNumber = node.text
+
+        node = tree.find(TrustList.xpNextUpdate)
+        self.NextUpdate = node.text
 
         node = tree.find(TrustList.xpType)
         self.TSLType = TrustListType.get_type_from_string(node.text)
@@ -221,14 +234,14 @@ class TrustList:
         node = tree.find(TrustList.xpOperatorName)
         self.OperatorName = node.text
 
-        if(self.TSLType == TrustListType.ListOfTheLists or self.TSLType == TrustListType.ListOfLists):
-            self.parse_list_of_lists(tree)
+        if(self.TSLType == TrustListType.ListOfTheLists):
+            self.__parse_list_of_lists(tree)
         elif(self.TSLType == TrustListType.Generic):
-            self.parse_list_of_generic(tree)
+            self.__parse_list_of_generic(tree)
 
         return True
 
-    def parse_list_of_lists(self, tree):
+    def __parse_list_of_lists(self, tree):
         otls = tree.findall(TrustList.xpOtherTL)
         # self.ListsOfTrust = []
         for tl in otls:
@@ -242,7 +255,7 @@ class TrustList:
                 continue
             self.ListsOfTrust.append(trustList)
 
-    def parse_list_of_generic(self, tree):
+    def __parse_list_of_generic(self, tree):
         nodes = tree.findall(TrustList.xpTsps)
         for node in nodes:
             node2 = node.find(
@@ -292,7 +305,7 @@ class TrustList:
                     continue
                 lot.Download(self.LocalWD, self.ForceDownload)
                 lot.Parse()
-                if(lot.TSLType == TrustListType.ListOfTheLists or lot.TSLType == TrustListType.ListOfLists):
+                if(lot.TSLType == TrustListType.ListOfTheLists):
                     self.ChildrenLOTLCount += 1
                 elif(lot.TSLType == TrustListType.Generic):
                     self.ChildrenGenericCount += 1
