@@ -19,8 +19,6 @@ def check_preconditions(options):
         os.makedirs(options.localTListPath())
     if not options.localTrustCertPath().is_dir():
         os.makedirs(options.localTrustCertPath())
-    # if not options.localUnTrustCertPath().is_dir():
-    #     os.makedirs(options.localUnTrustCertPath())
     return True
 
 def main(argv):

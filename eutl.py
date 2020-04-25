@@ -1,4 +1,11 @@
 '''
+    eutl module contains definitions of datastructures that map on EUTL data types definition
+        as it is specified bu ETSI TS 119 612 V2.1.1 (2015-07)
+
+    TrustList class contains methods that are able to download the list of trustlists
+        that should be 'https://ec.europa.eu/tools/lotl/eu-lotl.xml', parse it and download
+        the referenced trust lists that corresponds to each member state
+
     @author: George Gugulea
     @author_email: george.gugulea@certsign.ro
     @date: 01.11.2019

@@ -1,21 +1,24 @@
 import getopt
 import pathlib
+import sys
 
+'''
+Options class to parse command line parameters:
+-h                  prints help
+-f                  force download of trust lists even if they already exist
+--workingdir path   local directory where lists and certificates will be saved
+'''
 class Options:
     def __init__(self):
         self.urlLotl = 'https://ec.europa.eu/tools/lotl/eu-lotl.xml'
         self.workingDir = pathlib.Path('/tmp/etsi-plugtests/etl')
         self.force = False
-        # self.wdPath = pathlib.Path(self.workingDir)
 
     def localTListPath(self):
         return self.workingDir / "trustlists"
 
     def localTrustCertPath(self):
         return self.workingDir / "trustcerts"
-
-    def localUnTrustCertPath(self):
-        return self.workingDir / "untrustcerts"
 
     def localCachePath(self):
         return self.workingDir
@@ -39,7 +42,7 @@ class Options:
 
     def printHelp(self):
         print('''
-            -h              print this help and exit.
-            -f              force download. Will replace the file if it already exists. Default is False.
-            --workingdir    local working directory
+            -h                  print this help and exit.
+            -f                  force download. Will replace the file if it already exists. Default is False.
+            --workingdir path   local working directory
             ''')
