@@ -501,7 +501,7 @@ class TrustList:
 
         for svc in self.AllServices:
             if( not svc.Certificates ):
-                Logger.LogError("This service {0} '{1}' of type {2} has no certificate".format(svc.CC, svc.ServiceName, svc.ServiceTypeId.name))
+                Logger.LogInfo("This service {0} '{1}' of type {2} has no certificate".format(svc.CC, svc.ServiceName, svc.ServiceTypeId.name))
                 continue
             for certificate in svc.Certificates:
                 svc_attrs = {
