@@ -21,10 +21,6 @@ from logger import Logger
 
 def get_text_or_none(node):
     return node.text if node is not None else None
-    # if(node != None):
-    #     return node.text
-    # else:
-    #     return None
 
 
 def url_remote_file_name(url):
