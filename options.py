@@ -17,6 +17,9 @@ class Options:
     def localUnTrustCertPath(self):
         return self.workingDir / "untrustcerts"
 
+    def localCachePath(self):
+        return self.workingDir
+
     def parseCommandLine(self, argv):
         try:
             opts, args = getopt.getopt(

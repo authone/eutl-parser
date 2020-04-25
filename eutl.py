@@ -7,21 +7,35 @@
 '''
 from enum import Enum, unique
 import xml.etree.ElementTree as ET
+from xml.dom import minidom
 import urllib.request
 import os
 import ssl
+import base64
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+
 from logger import Logger
 
+
 def get_text_or_none(node):
-    if(node != None):
-        return node.text
-    else:
-        return None
+    return node.text if node is not None else None
+    # if(node != None):
+    #     return node.text
+    # else:
+    #     return None
 
 
 def url_remote_file_name(url):
     items = url.split('/')
     return items[-1]
+
+
+def make_dir(base_path, dir_name):
+    full_path = base_path / dir_name
+    if not full_path.is_dir():
+        os.makedirs(full_path)
 
 
 def download_file(rPath, lPath, force):
@@ -44,6 +58,14 @@ def download_file(rPath, lPath, force):
     data = resp.read()
     lFile = open(lPath, 'xb')
     lFile.write(data)
+
+
+def save_xml_to_file(elem_root, lPath):
+    reprsed = minidom.parseString(ET.tostring(elem_root, 'utf-8'))
+    xml_str_pretty = reprsed.toprettyxml(indent="  ")
+
+    with open(lPath, "wt") as xmlfile:
+        xmlfile.write(xml_str_pretty)
 
 
 class StringEnumType(Enum):
@@ -82,27 +104,48 @@ class TrustListType(StringEnumType):
 
 @unique
 class TspServiceType(StringEnumType):
+    ''' Follows qualified service providers'''
+    QC_CA = "http://uri.etsi.org/TrstSvc/Svctype/CA/QC"
+    QC_OCSP = "http://uri.etsi.org/TrstSvc/Svctype/Certstatus/OCSP/QC"
+    QC_CRL = "http://uri.etsi.org/TrstSvc/Svctype/Certstatus/CRL/QC"
+    Q_TST = "http://uri.etsi.org/TrstSvc/Svctype/TSA/QTST"
+    Q_EDS = "http://uri.etsi.org/TrstSvc/Svctype/EDS/Q"
+    Q_REM = "http://uri.etsi.org/TrstSvc/Svctype/EDS/REM/Q"
+    Q_PSES = "http://uri.etsi.org/TrstSvc/Svctype/PSES/Q"
+    Q_QESVAL = "http://uri.etsi.org/TrstSvc/Svctype/QESValidation/Q"
+    ''' Follows not qualified service providers'''
+    NQC_CA = "http://uri.etsi.org/TrstSvc/Svctype/CA/PKC"
+    NQC_OCSP = "http://uri.etsi.org/TrstSvc/Svctype/Certstatus/OCSP"
+    NQC_CRL = "http://uri.etsi.org/TrstSvc/Svctype/Certstatus/CRL"
+    NQ_TST = "http://uri.etsi.org/TrstSvc/Svctype/TSA"
+    NQ_TSSQC = "http://uri.etsi.org/TrstSvc/Svctype/TSA/TSS-QC"
+    NQ_TSSADESQCQES = "http://uri.etsi.org/TrstSvc/Svctype/TSA/TSS-AdESQCandQES"
+    NQ_EDS = "http://uri.etsi.org/TrstSvc/Svctype/EDS"
+    NQ_REMDS = "http://uri.etsi.org/TrstSvc/Svctype/EDS/REM"
+    NQ_PSES = "http://uri.etsi.org/TrstSvc/Svctype/PSES"
+    NQ_ADESV = "http://uri.etsi.org/TrstSvc/Svctype/AdESValidation"
+    NQ_ADESG = "http://uri.etsi.org/TrstSvc/Svctype/AdESGeneration"
+    ''' Follows not qualified, national level service providers'''
+    NAT_RA = "http://uri.etsi.org/TrstSvc/Svctype/RA"
+    NAT_RANOPKI = "http://uri.etsi.org/TrstSvc/Svctype/RA/nothavingPKIid"
+    NAT_ACA = "http://uri.etsi.org/TrstSvc/Svctype/ACA"
+    NAT_SPA = "http://uri.etsi.org/TrstSvc/Svctype/SignaturePolicyAuthority"
+    NAT_ARCH = "http://uri.etsi.org/TrstSvc/Svctype/Archiv"
+    NAT_ARCHNOPKI = "http://uri.etsi.org/TrstSvc/Svctype/Archiv/nothavingPKIid"
+    NAT_IDV = "http://uri.etsi.org/TrstSvc/Svctype/IdV"
+    NAT_IDVNOPKI = "http://uri.etsi.org/TrstSvc/Svctype/IdV/nothavingPKIid"
+    NAT_QESC = "http://uri.etsi.org/TrstSvc/Svctype/KEscrow"
+    NAT_QESCNOPKI = "http://uri.etsi.org/TrstSvc/Svctype/KEscrow/nothavingPKIid"
+    NAT_PP = "http://uri.etsi.org/TrstSvc/Svctype/PPwd"
+    NAT_PPNOPKI = "http://uri.etsi.org/TrstSvc/Svctype/PPwd/nothavingPKIid"
+    NAT_TLISS = "http://uri.etsi.org/TrstSvd/Svctype/TLIssuer"
+    NAT_ROOTCA_QC = "http://uri.etsi.org/TrstSvc/Svctype/NationalRootCA-QC"
+
     UNSPECIFIED = "http://uri.etsi.org/TrstSvc/Svctype/unspecified"
-    IDV = "http://uri.etsi.org/TrstSvc/Svctype/IdV"
-    IDV_NOPKI = "http://uri.etsi.org/TrstSvc/Svctype/IdV/nothavingPKIid"
-    CA_QC = "http://uri.etsi.org/TrstSvc/Svctype/CA/QC"
-    CA_PKC = "http://uri.etsi.org/TrstSvc/Svctype/CA/PKC"
-    NATIONALCA_QC = "http://uri.etsi.org/TrstSvc/Svctype/NationalRootCA-QC"
-    TSA = "http://uri.etsi.org/TrstSvc/Svctype/TSA"
-    TSA_QTST = "http://uri.etsi.org/TrstSvc/Svctype/TSA/QTST"
-    TSA_TSSQC = "http://uri.etsi.org/TrstSvc/Svctype/TSA/TSS-QC"
-    TSA_TSSADESQCQES = "http://uri.etsi.org/TrstSvc/Svctype/TSA/TSS-AdESQCandQES"
-    OCSP = "http://uri.etsi.org/TrstSvc/Svctype/Certstatus/OCSP"
-    OCSP_QC = "http://uri.etsi.org/TrstSvc/Svctype/Certstatus/OCSP/QC"
-    QESVAL_Q = "http://uri.etsi.org/TrstSvc/Svctype/QESValidation/Q"
-    ACA = "http://uri.etsi.org/TrstSvc/Svctype/ACA"
-    RA = "http://uri.etsi.org/TrstSvc/Svctype/RA"
-    EDS_Q = "http://uri.etsi.org/TrstSvc/Svctype/EDS/Q"
-    PSES_Q = "http://uri.etsi.org/TrstSvc/Svctype/PSES/Q"
 
 
 @unique
-class TspStatusType(StringEnumType):
+class TspServiceStatusType(StringEnumType):
     NationalLevelRecognised = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/recognisedatnationallevel"
     NationalLevelDeprecated = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/deprecatedatnationallevel"
     Granted = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted"
@@ -117,26 +160,57 @@ class ListStatus(Enum):
     SignatureNotValid = 3
 
 
+__q_services = {
+    "http://uri.etsi.org/TrstSvc/Svctype/CA/QC": True,
+    "http://uri.etsi.org/TrstSvc/Svctype/Certstatus/OCSP/QC": True,
+    "http://uri.etsi.org/TrstSvc/Svctype/Certstatus/CRL/QC": True,
+    "http://uri.etsi.org/TrstSvc/Svctype/TSA/QTST": True,
+    "http://uri.etsi.org/TrstSvc/Svctype/EDS/Q": True,
+    "http://uri.etsi.org/TrstSvc/Svctype/EDS/REM/Q": True,
+    "http://uri.etsi.org/TrstSvc/Svctype/PSES/Q": True,
+    "http://uri.etsi.org/TrstSvc/Svctype/QESValidation/Q": True
+}
+def IsQualifiedService(str_service_type):
+    return "true" if __q_services.get(str_service_type) else "false"
+
+
 class Certificate:
-    def __init__(self, subject, value):
+    def __init__(self, value, subject=None):
         self.Subject = subject
         self.Value = value
+        self.Bytes = None
+        self.FingerprintSHA1 = None
+        if( self.Value is None):
+            raise Exception("This certificate has no value {0}".format(self.Subject))
+
+        self.Bytes = base64.b64decode(self.Value)
+        Cert_x509 = x509.load_der_x509_certificate(self.Bytes, default_backend())
+        self.FingerprintSHA1 = Cert_x509.fingerprint(hashes.SHA1()).hex()
+        subj_attrs = Cert_x509.subject.get_attributes_for_oid(
+            x509.NameOID.COMMON_NAME)
+        if(not subj_attrs):
+            subj_attrs = Cert_x509.subject.get_attributes_for_oid(
+                x509.NameOID.ORGANIZATION_NAME)
+        self.Subject = subj_attrs[0].value
+
 
 
 class TrustServiceProviderService:
-    def __init__(self, svc_name, svc_type, country, svc_status, status_begin):
-        self.Name = svc_name
-        self.Type = TspServiceType.get_type_from_string(svc_type)
-        self.Country = country
-        self.StatusType = TspStatusType.get_type_from_string(svc_status)
-        self.StatusBegin = status_begin
-        self.Certificate = None
+    def __init__(self, svc_name, svc_type_id, cc, svc_status, status_start_time):
+        self.CC = cc
+        self.ServiceName = svc_name
+        self.ServiceTypeId = TspServiceType.get_type_from_string(svc_type_id)
+        self.ServiceCurrentStatusId = TspServiceStatusType.get_type_from_string(
+            svc_status)
+        self.ServiceCurrentStatusStartTime = status_start_time
+        # self.Certificate = None
+        self.Certificates = []
 
 
 class TrustServiceProvider:
-    def __init__(self, name, country):
+    def __init__(self, name, cc):
+        self.CC = cc
         self.Name = name
-        self.Country = country
         self.Services = []
 
 
@@ -157,20 +231,18 @@ class TrustList:
     xpTsps = "{0}TrustServiceProviderList/{0}TrustServiceProvider".format(
         EutlNS.NS1.value)
 
-    def __init__(self, Url, mime, country):
+    def __init__(self, Url, mime, cc):
         self.UrlLocation = Url
         self.LocalPath = None
         # add country code in front if the name: some lists have the same name
-        self.LocalName = country + "-" + url_remote_file_name(self.UrlLocation)
-        self.Version = None
+        self.LocalName = cc + "-" + url_remote_file_name(self.UrlLocation)
+        self.TypeVersion = None
         self.SeqNumber = None
         self.OperatorName = None
-        self.OperatorTeritory = country
+        self.OperatorTeritory = cc
         self.MimeType = mime
         self.TSLType = None
         self.NextUpdate = None
-        self.TSPs = []
-        self.ListsOfTrust = []
         self.Signature = None
         self.ForceDownload = False
         self.LocalWD = None
@@ -178,13 +250,18 @@ class TrustList:
         self.ChildrenLOTLCount = 0
         self.ChildrenPdfCount = 0
         self.Status = ListStatus.NotDownloaded
+        self.ListsOfTrust = []
+        self.TSPs = []
+        self.TrustServiceProvider = []
+        self.AllServices = []
+        # self.__xml_cache = None # hold a xml tree with trust-lists list and/or certificates list for caching
 
     def Update(self, localwd, force):
         self.Download(localwd, force)
         self.Parse()
 
     def Download(self, localwd, force):
-        if(self.UrlLocation == None):
+        if(self.UrlLocation is None):
             raise "TrustList.Download failed: Url is empty"
         self.ForceDownload = force
         self.LocalWD = localwd
@@ -215,11 +292,11 @@ class TrustList:
         self.OperatorTeritory = node.text
 
         node = tree.find(TrustList.xpVersion)
-        self.Version = node.text
+        self.TypeVersion = node.text
 
-        if( self.Version != "5" ):
-            Logger.logError("Will not parse list {0}. it has an unknown version {1}".format(
-                self.LocalName, self.Version))
+        if(self.TypeVersion != "5"):
+            Logger.logError("Will not parse list {0}. it has an unknown type version {1}".format(
+                self.LocalName, self.TypeVersion))
             return False
 
         node = tree.find(TrustList.xpSqNumber)
@@ -241,18 +318,108 @@ class TrustList:
 
         return True
 
+    def DownloadChildren(self):
+        self.ChildrenGenericCount = 0
+        self.ChildrenLOTLCount = 0
+        if(self.TSLType == TrustListType.ListOfTheLists ):
+            for lot in self.ListsOfTrust:
+                if(lot.MimeType != MimeType.Xml):
+                    continue
+                lot.Download(self.LocalWD, self.ForceDownload)
+                lot.Parse()
+                if(lot.TSLType == TrustListType.ListOfTheLists):
+                    self.ChildrenLOTLCount += 1
+                elif(lot.TSLType == TrustListType.Generic):
+                    self.ChildrenGenericCount += 1
+                elif(lot.MimeType == MimeType.Pdf):
+                    self.ChildrenPdfCount += 1
+
+    def PostProcess(self, path):
+        if(self.TSLType != TrustListType.ListOfTheLists):
+            return False
+        self.AllServices = self.__get_all_services()
+        self.__save_xml_list_cache(path)
+        self.__save_xml_certificates_cache(path)
+
+    def SaveCetificatesOnDisk(self, base_dir):
+        if(not self.AllServices):
+            return False
+        table_replace = {
+            '(': '_',
+            ')': '_',
+            ' ': '_',
+            '=': '_',
+            '/': '_',
+            '\\': '_',
+            ',': '_',
+            '.': '_',
+            ';': '_',
+            ':': '_',
+        }
+        trantab = str.maketrans("() =/.,\\", "________")
+
+        for service in self.AllServices:
+            if(not service.ServiceTypeId):
+                raise("This service has no type")
+
+            make_dir(base_dir, service.ServiceTypeId.name)
+
+            if (service.Certificates):
+                for certificate in service.Certificates:
+                    file_name = service.CC + "_" + \
+                        certificate.Subject.translate(trantab) + "_" + \
+                        certificate.FingerprintSHA1[0:10] + ".cer"
+                    file_path = base_dir / service.ServiceTypeId.name / file_name
+
+                    with open(file_path, "wb") as cert_file:
+                        cert_file.write(certificate.Bytes)
+
+
+    def Print(self):
+        print("\n{0}: {1}\n\tFile: {2}\n\tUrl: {3}\n\tType Version: {4}\n\tSeqNumber: {5}\n\tNextUpdate: {6}\n\tListType: {7}\
+                \n\tMimeType: {8}".format(
+            self.OperatorTeritory,
+            self.OperatorName,
+            self.LocalName,
+            self.UrlLocation,
+            self.TypeVersion,
+            self.SeqNumber,
+            self.NextUpdate,
+            self.TSLType,
+            self.MimeType,
+        ))
+        if(self.TSLType == TrustListType.ListOfTheLists):
+            print("\tChildren: {0} LofT; {1} Generic; {2} Pdf".format(
+                self.ChildrenLOTLCount,
+                self.ChildrenGenericCount,
+                self.ChildrenPdfCount
+            ))
+        elif(self.TSLType == TrustListType.Generic):
+            print("\tChildren: {0} TSPs".format(
+                len(self.TSPs)))
+
+        if(self.TSLType == TrustListType.ListOfTheLists):
+            for tslist in self.ListsOfTrust:
+                tslist.Print()
+
     def __parse_list_of_lists(self, tree):
         otls = tree.findall(TrustList.xpOtherTL)
         # self.ListsOfTrust = []
         for tl in otls:
             url = tl.find("{0}TSLLocation".format(EutlNS.NS1.value)).text
             mime = tl.find(".//{0}MimeType".format(EutlNS.NS4.value)).text
-            country = tl.find(
+            cc = tl.find(
                 "{0}AdditionalInformation//{0}SchemeTerritory".format(EutlNS.NS1.value)).text
-            trustList = TrustList(
-                url, MimeType.get_type_from_string(mime), country)
+
             if(self.UrlLocation == url):
                 continue
+
+            if(MimeType.get_type_from_string(mime) == MimeType.Pdf):
+                continue
+
+            trustList = TrustList(
+                url, MimeType.get_type_from_string(mime), cc)
+
             self.ListsOfTrust.append(trustList)
 
     def __parse_list_of_generic(self, tree):
@@ -277,72 +444,76 @@ class TrustList:
                     "{0}ServiceStatus".format(EutlNS.NS1.value))
                 node_svc_status_begin = node_svc.find(
                     "{0}StatusStartingTime".format(EutlNS.NS1.value))
-                node_svc_x509_val = node_svc.find(
+                node_svc_x509_vals = node_svc.findall(
                     "{0}ServiceDigitalIdentity/{0}DigitalId/{0}X509Certificate".format(EutlNS.NS1.value))
-                node_svc_x509_subj = node_svc.find(
-                    "{0}ServiceDigitalIdentity/{0}DigitalId/{0}X509SubjectName".format(EutlNS.NS1.value))
+                # node_svc_x509_subj = node_svc.find(
+                #     "{0}ServiceDigitalIdentity/{0}DigitalId/{0}X509SubjectName".format(EutlNS.NS1.value))
 
-                svc_cert = Certificate(
-                    get_text_or_none(node_svc_x509_subj),
-                    get_text_or_none(node_svc_x509_val)
-                )
                 svc = TrustServiceProviderService(
                     get_text_or_none(node_svc_name),
                     get_text_or_none(node_svc_type),
-                    tsp.Country,
+                    tsp.CC,
                     get_text_or_none(node_svc_status),
                     get_text_or_none(node_svc_status_begin)
                 )
-                svc.Certificate = svc_cert
+                if(node_svc_x509_vals is not None):
+                    for value in node_svc_x509_vals:      
+                        svc.Certificates.append( Certificate(value.text) )
                 tsp.Services.append(svc)
-
-    def DownloadChildren(self):
-        self.ChildrenGenericCount = 0
-        self.ChildrenLOTLCount = 0
-        if(self.TSLType == TrustListType.ListOfTheLists or self.TSLType == TrustListType.ListOfLists):
-            for lot in self.ListsOfTrust:
-                if(lot.MimeType != MimeType.Xml):
-                    continue
-                lot.Download(self.LocalWD, self.ForceDownload)
-                lot.Parse()
-                if(lot.TSLType == TrustListType.ListOfTheLists):
-                    self.ChildrenLOTLCount += 1
-                elif(lot.TSLType == TrustListType.Generic):
-                    self.ChildrenGenericCount += 1
-                elif(lot.MimeType == MimeType.Pdf):
-                    self.ChildrenPdfCount += 1
-
-    def Print(self):
-        print("\n{0}: {1}\n\tFile: {2}\n\tUrl: {3}\n\tVersion: {4}\n\tSeqNumber: {5}\n\tNextUpdate: {6}\n\tListType: {7}\
-                \n\tMimeType: {8}".format(
-            self.OperatorTeritory,
-            self.OperatorName,
-            self.LocalName,
-            self.UrlLocation,
-            self.Version,
-            self.SeqNumber,
-            self.NextUpdate,
-            self.TSLType,
-            self.MimeType,
-        ))
-        if(self.TSLType == TrustListType.ListOfTheLists):
-            print("\tChildren: {0} LofT; {1} Generic; {2} Pdf".format(
-                self.ChildrenLOTLCount,
-                self.ChildrenGenericCount,
-                self.ChildrenPdfCount
-            ))
-        elif(self.TSLType == TrustListType.Generic):
-            print("\tChildren: {0} TSPs".format(
-                len(self.TSPs)))
-
-        if(self.TSLType == TrustListType.ListOfTheLists):
-            for tslist in self.ListsOfTrust:
-                tslist.Print()
-
-    def GetAllServices(self):
+    
+    def __get_all_services(self):
         all_services = []
         for tlist in self.ListsOfTrust:
             for svc_prov in tlist.TSPs:
                 for service in svc_prov.Services:
                     all_services.append(service)
         return all_services
+
+    def __save_xml_list_cache(self, path):
+        if( self.ListsOfTrust is None):
+            return False
+
+        elem_root = ET.Element('trustlists')
+        elem_root.set('version', self.TypeVersion)
+        elem_root.set('sequence', self.SeqNumber)
+        
+        for tl in self.ListsOfTrust:
+            if(not tl.OperatorTeritory or not tl.OperatorName or not tl.LocalName or not tl.UrlLocation or not tl.NextUpdate or not tl.TypeVersion or not tl.SeqNumber):
+                print(tl)
+            tl_attrs = {
+                "cc": tl.OperatorTeritory,
+                "operator": tl.OperatorName,
+                "name": tl.LocalName,
+                "uri": tl.UrlLocation,
+                "nextupdate": tl.NextUpdate,
+                "type": tl.TypeVersion, 
+                "version": tl.SeqNumber
+            }
+            elem_tl = ET.SubElement(elem_root, 'list', tl_attrs)
+
+        save_xml_to_file (elem_root, path / "trust_lists.xml")
+        
+    def __save_xml_certificates_cache(self, path):
+        if( self.AllServices is None or len(self.AllServices) == 0):
+            return False
+
+        elem_root = ET.Element('trustservices')
+
+        for svc in self.AllServices:
+            if( not svc.Certificates ):
+                Logger.LogError("This service {0} '{1}' of type {2} has no certificate".format(svc.CC, svc.ServiceName, svc.ServiceTypeId.name))
+                continue
+            for certificate in svc.Certificates:
+                svc_attrs = {
+                    "cc": svc.CC,
+                    "name": svc.ServiceName,
+                    "type": svc.ServiceTypeId.value,
+                    "isqualified": IsQualifiedService(svc.ServiceTypeId.value),
+                    "status": svc.ServiceCurrentStatusId.value,
+                    "begin": svc.ServiceCurrentStatusStartTime,
+                    "x509fingerprintsha1": certificate.FingerprintSHA1,
+                    # "x509valueb64": svc.Certificates[0].Value if svc.Certificates else ""
+                }
+                elem_svc = ET.SubElement(elem_root, 'list', svc_attrs)
+
+        save_xml_to_file(elem_root, path / "trust_services.xml")
