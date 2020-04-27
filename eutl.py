@@ -199,8 +199,9 @@ class Certificate:
 
 
 class TrustServiceProviderService:
-    def __init__(self, svc_name, svc_type_id, cc, svc_status, status_start_time):
+    def __init__(self, cc, tsp_name, svc_name, svc_type_id, svc_status, status_start_time):
         self.CC = cc
+        self.TrustServiceProviderName = tsp_name
         self.ServiceName = svc_name
         self.ServiceTypeId = TspServiceType.get_type_from_string(svc_type_id)
         self.ServiceCurrentStatusId = TspServiceStatusType.get_type_from_string(
@@ -213,7 +214,7 @@ class TrustServiceProviderService:
 class TrustServiceProvider:
     def __init__(self, name, cc):
         self.CC = cc
-        self.Name = name
+        self.TrustServiceProviderName = name
         self.Services = []
 
 
@@ -254,10 +255,8 @@ class TrustList:
         self.ChildrenPdfCount = 0
         self.Status = ListStatus.NotDownloaded
         self.ListsOfTrust = []
-        self.TSPs = []
         self.TrustServiceProvider = []
         self.AllServices = []
-        # self.__xml_cache = None # hold a xml tree with trust-lists list and/or certificates list for caching
 
     def Update(self, localwd, force):
         self.Download(localwd, force)
@@ -399,7 +398,7 @@ class TrustList:
             ))
         elif(self.TSLType == TrustListType.Generic):
             print("\tChildren: {0} TSPs".format(
-                len(self.TSPs)))
+                len(self.TrustServiceProvider)))
 
         if(self.TSLType == TrustListType.ListOfTheLists):
             for tslist in self.ListsOfTrust:
@@ -433,7 +432,7 @@ class TrustList:
             name = node2.text
 
             tsp = TrustServiceProvider(name, self.OperatorTeritory)
-            self.TSPs.append(tsp)
+            self.TrustServiceProvider.append(tsp)
 
             node_services = node.findall(
                 "{0}TSPServices/{0}TSPService/{0}ServiceInformation".format(EutlNS.NS1.value))
@@ -453,9 +452,10 @@ class TrustList:
                 #     "{0}ServiceDigitalIdentity/{0}DigitalId/{0}X509SubjectName".format(EutlNS.NS1.value))
 
                 svc = TrustServiceProviderService(
+                    tsp.CC,
+                    tsp.TrustServiceProviderName,
                     get_text_or_none(node_svc_name),
                     get_text_or_none(node_svc_type),
-                    tsp.CC,
                     get_text_or_none(node_svc_status),
                     get_text_or_none(node_svc_status_begin)
                 )
@@ -467,7 +467,7 @@ class TrustList:
     def __get_all_services(self):
         all_services = []
         for tlist in self.ListsOfTrust:
-            for svc_prov in tlist.TSPs:
+            for svc_prov in tlist.TrustServiceProvider:
                 for service in svc_prov.Services:
                     all_services.append(service)
         return all_services
@@ -500,7 +500,7 @@ class TrustList:
         if( self.AllServices is None or len(self.AllServices) == 0):
             return False
 
-        elem_root = ET.Element('trustservices')
+        elem_root = ET.Element('trustservicedigitalid', {"nextupdate": self.NextUpdate})
 
         for svc in self.AllServices:
             if( not svc.Certificates ):
@@ -509,7 +509,8 @@ class TrustList:
             for certificate in svc.Certificates:
                 svc_attrs = {
                     "cc": svc.CC,
-                    "name": svc.ServiceName,
+                    "tspname": svc.TrustServiceProviderName,
+                    "servicename": svc.ServiceName,
                     "type": svc.ServiceTypeId.value,
                     "isqualified": IsQualifiedService(svc.ServiceTypeId.value),
                     "status": svc.ServiceCurrentStatusId.value,
@@ -517,6 +518,6 @@ class TrustList:
                     "x509fingerprintsha1": certificate.FingerprintSHA1,
                     # "x509valueb64": svc.Certificates[0].Value if svc.Certificates else ""
                 }
-                elem_svc = ET.SubElement(elem_root, 'list', svc_attrs)
+                elem_svc = ET.SubElement(elem_root, 'digitalid', svc_attrs)
 
         save_xml_to_file(elem_root, path / "trust_services.xml")

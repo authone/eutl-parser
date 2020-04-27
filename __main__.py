@@ -40,7 +40,7 @@ def main(argv):
         # EuTL.Print()
 
         Logger.LogInfo("Found {0} trust service providers and {1} services.".format(
-            sum(len(x.TSPs) for x in EuTL.ListsOfTrust),
+            sum(len(x.TrustServiceProvider) for x in EuTL.ListsOfTrust),
             len(EuTL.AllServices)))
 
         return True
