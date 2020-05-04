@@ -348,25 +348,12 @@ class TrustList:
     def SaveCetificatesOnDisk(self, base_dir):
         if(not self.AllServices):
             return False
-        table_replace = {
-            '(': '_',
-            ')': '_',
-            ' ': '_',
-            '=': '_',
-            '/': '_',
-            '\\': '_',
-            ',': '_',
-            '.': '_',
-            ';': '_',
-            ':': '_',
-        }
-        trantab = str.maketrans("() =/.,\\", "________")
+
+        trantab = str.maketrans("() =/\\.,;:&%", "____________")
 
         for service in self.AllServices:
             if(not service.ServiceTypeId):
                 raise("This service has no type")
-
-            # make_dir(base_dir, service.ServiceTypeId.name)
 
             if (service.Certificates):
                 for certificate in service.Certificates:
