@@ -26,8 +26,8 @@ from cryptography.hazmat.primitives import hashes
 from logger import Logger
 
 
-def get_text_or_none(node):
-    return node.text if node is not None else None
+def get_text_or_empty(node):
+    return node.text if node is not None else ""
 
 
 def url_remote_file_name(url):
@@ -199,9 +199,10 @@ class Certificate:
 
 
 class TrustServiceProviderService:
-    def __init__(self, cc, tsp_name, svc_name, svc_type_id, svc_status, status_start_time):
+    def __init__(self, cc, tsp_name, tsp_tradename, svc_name, svc_type_id, svc_status, status_start_time):
         self.CC = cc
         self.TrustServiceProviderName = tsp_name
+        self.TrustServiceProviderTradeName = tsp_tradename
         self.ServiceName = svc_name
         self.ServiceTypeId = TspServiceType.get_type_from_string(svc_type_id)
         self.ServiceCurrentStatusId = TspServiceStatusType.get_type_from_string(
@@ -212,9 +213,10 @@ class TrustServiceProviderService:
 
 
 class TrustServiceProvider:
-    def __init__(self, name, cc):
+    def __init__(self, cc, name, tradename):
         self.CC = cc
         self.TrustServiceProviderName = name
+        self.TrustServiceProviderTradeName = tradename
         self.Services = []
 
 
@@ -255,7 +257,7 @@ class TrustList:
         self.ChildrenPdfCount = 0
         self.Status = ListStatus.NotDownloaded
         self.ListsOfTrust = []
-        self.TrustServiceProvider = []
+        self.TrustServiceProviders = []
         self.AllServices = []
 
     def Update(self, localwd, force):
@@ -364,14 +366,15 @@ class TrustList:
             if(not service.ServiceTypeId):
                 raise("This service has no type")
 
-            make_dir(base_dir, service.ServiceTypeId.name)
+            # make_dir(base_dir, service.ServiceTypeId.name)
 
             if (service.Certificates):
                 for certificate in service.Certificates:
                     file_name = service.CC + "_" + \
                         certificate.Subject.translate(trantab) + "_" + \
+                        service.ServiceTypeId.name + "_" + \
                         certificate.FingerprintSHA1[0:10] + ".cer"
-                    file_path = base_dir / service.ServiceTypeId.name / file_name
+                    file_path = base_dir / file_name
 
                     with open(file_path, "wb") as cert_file:
                         cert_file.write(certificate.Bytes)
@@ -398,7 +401,7 @@ class TrustList:
             ))
         elif(self.TSLType == TrustListType.Generic):
             print("\tChildren: {0} TSPs".format(
-                len(self.TrustServiceProvider)))
+                len(self.TrustServiceProviders)))
 
         if(self.TSLType == TrustListType.ListOfTheLists):
             for tslist in self.ListsOfTrust:
@@ -427,12 +430,15 @@ class TrustList:
     def __parse_list_of_generic(self, tree):
         nodes = tree.findall(TrustList.xpTsps)
         for node in nodes:
-            node2 = node.find(
+            node_name = node.find(
                 "{0}TSPInformation/{0}TSPName/{0}Name".format(EutlNS.NS1.value))
-            name = node2.text
+            name = node_name.text
+            node_tradename = node.find(
+                "{0}TSPInformation/{0}TSPTradeName/{0}Name".format(EutlNS.NS1.value))
+            tradename = get_text_or_empty(node_tradename)
 
-            tsp = TrustServiceProvider(name, self.OperatorTeritory)
-            self.TrustServiceProvider.append(tsp)
+            tsp = TrustServiceProvider(self.OperatorTeritory, name, tradename)
+            self.TrustServiceProviders.append(tsp)
 
             node_services = node.findall(
                 "{0}TSPServices/{0}TSPService/{0}ServiceInformation".format(EutlNS.NS1.value))
@@ -454,10 +460,11 @@ class TrustList:
                 svc = TrustServiceProviderService(
                     tsp.CC,
                     tsp.TrustServiceProviderName,
-                    get_text_or_none(node_svc_name),
-                    get_text_or_none(node_svc_type),
-                    get_text_or_none(node_svc_status),
-                    get_text_or_none(node_svc_status_begin)
+                    tsp.TrustServiceProviderTradeName,
+                    get_text_or_empty(node_svc_name),
+                    get_text_or_empty(node_svc_type),
+                    get_text_or_empty(node_svc_status),
+                    get_text_or_empty(node_svc_status_begin)
                 )
                 if(node_svc_x509_vals is not None):
                     for value in node_svc_x509_vals:      
@@ -467,7 +474,7 @@ class TrustList:
     def __get_all_services(self):
         all_services = []
         for tlist in self.ListsOfTrust:
-            for svc_prov in tlist.TrustServiceProvider:
+            for svc_prov in tlist.TrustServiceProviders:
                 for service in svc_prov.Services:
                     all_services.append(service)
         return all_services
@@ -500,7 +507,7 @@ class TrustList:
         if( self.AllServices is None or len(self.AllServices) == 0):
             return False
 
-        elem_root = ET.Element('trustservicedigitalid', {"nextupdate": self.NextUpdate})
+        elem_root = ET.Element('trustservicesdigitalids', {"nextupdate": self.NextUpdate})
 
         for svc in self.AllServices:
             if( not svc.Certificates ):
@@ -510,6 +517,7 @@ class TrustList:
                 svc_attrs = {
                     "cc": svc.CC,
                     "tspname": svc.TrustServiceProviderName,
+                    "tsptradename": svc.TrustServiceProviderTradeName,
                     "servicename": svc.ServiceName,
                     "type": svc.ServiceTypeId.value,
                     "isqualified": IsQualifiedService(svc.ServiceTypeId.value),
