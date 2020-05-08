@@ -349,7 +349,7 @@ class TrustList:
         if(not self.AllServices):
             return False
 
-        trantab = str.maketrans("() =/\\.,;:&%", "____________")
+        trantab = str.maketrans("() =/\\.,;:&%?", "_____________")
 
         for service in self.AllServices:
             if(not service.ServiceTypeId):
@@ -357,8 +357,9 @@ class TrustList:
 
             if (service.Certificates):
                 for certificate in service.Certificates:
-                    file_name = service.CC + "_" + \
-                        certificate.Subject.translate(trantab) + "_" + \
+                    subject = certificate.Subject.encode('ascii', 'replace').decode(
+                        'ascii', 'replce').translate(trantab)
+                    file_name = service.CC + "_" + subject + "_" + \
                         service.ServiceTypeId.name + "_" + \
                         certificate.FingerprintSHA1[0:10] + ".cer"
                     file_path = base_dir / file_name
