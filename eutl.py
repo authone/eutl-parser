@@ -17,6 +17,7 @@ import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import urllib.request
 import os
+import io
 import ssl
 import base64
 from cryptography import x509
@@ -67,7 +68,7 @@ def save_xml_to_file(elem_root, lPath):
     reprsed = minidom.parseString(ET.tostring(elem_root, 'utf-8'))
     xml_str_pretty = reprsed.toprettyxml(indent="  ")
 
-    with open(lPath, "wt") as xmlfile:
+    with io.open(lPath, "w", encoding="utf-8") as xmlfile:
         xmlfile.write(xml_str_pretty)
 
 
@@ -349,7 +350,7 @@ class TrustList:
         if(not self.AllServices):
             return False
 
-        trantab = str.maketrans("() =/\\.,;:&%?", "_____________")
+        trantab = str.maketrans("() =/\\.,;:&%?*", "______________")
 
         for service in self.AllServices:
             if(not service.ServiceTypeId):
