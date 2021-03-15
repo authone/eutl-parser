@@ -25,6 +25,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 
 from logger import Logger
+import glob
 
 
 def get_text_or_empty(node):
@@ -40,6 +41,24 @@ def make_dir(base_path, dir_name):
     full_path = base_path / dir_name
     if not full_path.is_dir():
         os.makedirs(full_path)
+
+def delete_all_files(folder_path, pattern):
+
+    if(folder_path is None or not folder_path.exists()):
+        Logger.LogError("Folder does not exist: {0}". folder_path)
+        return
+
+    Logger.LogInfo(
+        "Deleting existing certificate files in directory {0}".format(folder_path))
+
+
+    cert_files = list(folder_path.glob(pattern))
+    #cert_files = glob.glob(, recursive=False)
+    for cert_file in cert_files:
+        os.remove(cert_file)
+
+    Logger.LogInfo("Deleted {0} {1} files".format(len(cert_files), pattern))
+
 
 
 def download_file(rPath, lPath, force):
@@ -291,30 +310,39 @@ class TrustList:
             Logger.LogInfo("Ignoring file {0}".format(self.LocalName))
             return False
 
-        tree = ET.parse(self.LocalPath)
+        try:
+            tree = ET.parse(self.LocalPath)
 
-        node = tree.find(TrustList.xpOperatorTeritory)
-        self.OperatorTeritory = node.text
+            node = tree.find(TrustList.xpOperatorTeritory)
+            self.OperatorTeritory = node.text
 
-        node = tree.find(TrustList.xpVersion)
-        self.TypeVersion = node.text
+            node = tree.find(TrustList.xpVersion)
+            self.TypeVersion = node.text
 
-        if(self.TypeVersion != "5"):
-            Logger.logError("Will not parse list {0}. it has an unknown type version {1}".format(
-                self.LocalName, self.TypeVersion))
+            if(self.TypeVersion != "5"):
+                Logger.logError("Will not parse list {0}. it has an unknown type version {1}".format(
+                    self.LocalName, self.TypeVersion))
+                self.Status = ListStatus.StructureError
+                return False
+
+            node = tree.find(TrustList.xpSqNumber)
+            self.SeqNumber = node.text
+
+            node = tree.find(TrustList.xpNextUpdate)
+            self.NextUpdate = node.text
+
+            node = tree.find(TrustList.xpType)
+            self.TSLType = TrustListType.get_type_from_string(node.text)
+
+            node = tree.find(TrustList.xpOperatorName)
+            self.OperatorName = node.text
+
+        except AttributeError as ex:
+            Logger.LogException(
+                "Failed to parse list {0}".format(self.LocalName), ex)
+            self.Status = ListStatus.StructureError
             return False
 
-        node = tree.find(TrustList.xpSqNumber)
-        self.SeqNumber = node.text
-
-        node = tree.find(TrustList.xpNextUpdate)
-        self.NextUpdate = node.text
-
-        node = tree.find(TrustList.xpType)
-        self.TSLType = TrustListType.get_type_from_string(node.text)
-
-        node = tree.find(TrustList.xpOperatorName)
-        self.OperatorName = node.text
 
         if(self.TSLType == TrustListType.ListOfTheLists):
             self.__parse_list_of_lists(tree)
@@ -330,8 +358,10 @@ class TrustList:
             for lot in self.ListsOfTrust:
                 if(lot.MimeType != MimeType.Xml):
                     continue
+
                 lot.Download(self.LocalWD, self.ForceDownload)
                 lot.Parse()
+
                 if(lot.TSLType == TrustListType.ListOfTheLists):
                     self.ChildrenLOTLCount += 1
                 elif(lot.TSLType == TrustListType.Generic):
@@ -349,6 +379,8 @@ class TrustList:
     def SaveCetificatesOnDisk(self, base_dir):
         if(not self.AllServices):
             return False
+
+        delete_all_files(base_dir, "*.cer")
 
         trantab = str.maketrans("() =/\\.,;:&%?*", "______________")
 
@@ -398,7 +430,7 @@ class TrustList:
 
     def __parse_list_of_lists(self, tree):
         otls = tree.findall(TrustList.xpOtherTL)
-        # self.ListsOfTrust = []
+
         for tl in otls:
             url = tl.find("{0}TSLLocation".format(EutlNS.NS1.value)).text
             mime = tl.find(".//{0}MimeType".format(EutlNS.NS4.value)).text
@@ -455,6 +487,9 @@ class TrustList:
                     get_text_or_empty(node_svc_status),
                     get_text_or_empty(node_svc_status_begin)
                 )
+
+                # TODO: should we validate list structure here?
+                 
                 if(node_svc_x509_vals is not None):
                     for value in node_svc_x509_vals:      
                         svc.Certificates.append( Certificate(value.text) )
@@ -463,6 +498,9 @@ class TrustList:
     def __get_all_services(self):
         all_services = []
         for tlist in self.ListsOfTrust:
+            if(self.Status is not ListStatus.Success):
+                continue
+
             for svc_prov in tlist.TrustServiceProviders:
                 for service in svc_prov.Services:
                     all_services.append(service)
@@ -477,6 +515,10 @@ class TrustList:
         elem_root.set('sequence', self.SeqNumber)
         
         for tl in self.ListsOfTrust:
+
+            if( tl.Status is not ListStatus.Success):
+                continue
+
             if(not tl.OperatorTeritory or not tl.OperatorName or not tl.LocalName or not tl.UrlLocation or not tl.NextUpdate or not tl.TypeVersion or not tl.SeqNumber):
                 print(tl)
             tl_attrs = {
