@@ -1,4 +1,8 @@
+autopep8==1.5.2
 cffi==1.14.0
-cryptography
+cryptography==2.9.2
+elementpath==2.2.0
+pycodestyle==2.5.0
 pycparser==2.20
 six==1.14.0
+xmlschema==1.5.3

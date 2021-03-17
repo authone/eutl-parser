@@ -27,12 +27,14 @@ def main(argv):
     options.workingDir = pathlib.Path("./.download")
     options.parseCommandLine(argv)
 
+    validationSchema = "schemas/ts_119612v020201_201601xsd.xsd"
+
     if not check_preconditions(options):
         Logger.LogError("main: preconditions not satisfied, exiting.")
         return False
 
     try:
-        EuTL = TrustList(options.urlLotl, MimeType.Xml, "EU")
+        EuTL = TrustList(options.urlLotl, MimeType.Xml, "EU", validationSchema)
         EuTL.Update(options.localTListPath(), options.force)
         EuTL.DownloadChildren()
         EuTL.PostProcess(options.localCachePath())

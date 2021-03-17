@@ -12,21 +12,23 @@
     @description: Download European Trust Lists and parse it to obtain containing certificates
                     It all starts from the root of the lists: 'https://ec.europa.eu/tools/lotl/eu-lotl.xml'
 '''
-from enum import Enum, unique
-import xml.etree.ElementTree as ET
-from xml.dom import minidom
-import urllib.request
 import os
 import io
 import ssl
 import base64
+import glob
+import urllib.request
+import xml.etree.ElementTree as ET
+import xmlschema
+from enum import Enum, unique
+from xml.dom import minidom
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 
 from logger import Logger
-import glob
 
+#xmlschema.allow = 
 
 def get_text_or_empty(node):
     return node.text if node is not None else ""
@@ -53,7 +55,7 @@ def delete_all_files(folder_path, pattern):
 
 
     cert_files = list(folder_path.glob(pattern))
-    #cert_files = glob.glob(, recursive=False)
+
     for cert_file in cert_files:
         os.remove(cert_file)
 
@@ -179,8 +181,9 @@ class TspServiceStatusType(StringEnumType):
 class ListStatus(Enum):
     Success = 0
     NotDownloaded = 1
-    StructureError = 2
-    SignatureNotValid = 3
+    SchemaError = 2
+    StructureError = 3
+    SignatureNotValid = 4
 
 
 __q_services = {
@@ -257,9 +260,10 @@ class TrustList:
     xpTsps = "{0}TrustServiceProviderList/{0}TrustServiceProvider".format(
         EutlNS.NS1.value)
 
-    def __init__(self, Url, mime, cc):
+    def __init__(self, Url, mime, cc, xsdPath):
         self.UrlLocation = Url
         self.LocalPath = None
+        self.xsdPath = xsdPath
         # add country code in front if the name: some lists have the same name
         self.LocalName = cc + "-" + url_remote_file_name(self.UrlLocation)
         self.TypeVersion = None
@@ -280,8 +284,12 @@ class TrustList:
         self.TrustServiceProviders = []
         self.AllServices = []
 
+        self.eutlschema = xmlschema.XMLSchema(self.xsdPath, )
+
+
     def Update(self, localwd, force):
         self.Download(localwd, force)
+        self.ValidateWithSchema()
         self.Parse()
 
     def Download(self, localwd, force):
@@ -305,7 +313,12 @@ class TrustList:
                             self.LocalName, self.Status))
             return False
 
-        return True
+        valid = self.eutlschema.is_valid( str(self.LocalPath) )
+
+        self.Status = ListStatus.Success if self.eutlschema.is_valid( str(self.LocalPath)) else ListStatus.SchemaError
+        Logger.LogInfo("Validation result for list {0} with etsi schema is {1}".format(self.LocalName, self.Status))
+        
+        return self.Status is ListStatus.Success 
 
     def Parse(self):
         if(self.Status != ListStatus.Success):
@@ -369,6 +382,7 @@ class TrustList:
                     continue
 
                 lot.Download(self.LocalWD, self.ForceDownload)
+                lot.ValidateWithSchema()
                 lot.Parse()
 
                 if(lot.TSLType == TrustListType.ListOfTheLists):
@@ -453,7 +467,7 @@ class TrustList:
                 continue
 
             trustList = TrustList(
-                url, MimeType.get_type_from_string(mime), cc)
+                url, MimeType.get_type_from_string(mime), cc, self.xsdPath)
 
             self.ListsOfTrust.append(trustList)
 
