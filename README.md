@@ -9,10 +9,13 @@ In also creates an XML index file of trust service providers
 
 
 # Installation:
-    All application dependencies are freezed in requirements.txt. Do not forget to run 
-    'pip install -r requirements.txt'
+All application dependencies are freezed in requirements.txt. Do not forget to run
+
+`pip install -r requirements.txt`
 
 # Running
-    Application is intended to run with python3. Use your favorite python interpreter, but CPython is the one recommended.
-    You can run the application using command `python3 .` in the application directory.
-    Check application command line parameters with `python3 . -h`
+Application is intended to run with python3. Use your favorite python interpreter, but CPython is the one recommended.
+
+You can run the application using command `python3 .` in the application directory.
+
+Check application command line parameters with `python3 . -h`
