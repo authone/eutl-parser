@@ -4,15 +4,20 @@ import sys
 
 '''
 Options class to parse command line parameters:
--h                  prints help
--f                  force download of trust lists even if they already exist
---workingdir path   local directory where lists and certificates will be saved
+            -h                      print this help and exit.   
+            -v                      print application version and exit.
+            -f                      force download. Will replace the file if it already exists. Default is False.
+            --workingdir path       local working directory
+            --xsd-directory path    path to xsd schema files location
 '''
+
 class Options:
     def __init__(self):
         self.urlLotl = 'https://ec.europa.eu/tools/lotl/eu-lotl.xml'
         self.workingDir = pathlib.Path('/tmp/etsi-plugtests/etl')
+        self.xsdDir = pathlib.Path("schemas")
         self.force = False
+        self.printVersionAndExit = False
 
     def localTListPath(self):
         return self.workingDir / "trustlists"
@@ -26,7 +31,7 @@ class Options:
     def parseCommandLine(self, argv):
         try:
             opts, args = getopt.getopt(
-                argv, "hf", ["workingdir="])
+                argv, "hvf", ["version", "workingdir=", "xsd-directory="])
         except getopt.GetoptError:
             self.printHelp()
             sys.exit(2)
@@ -37,12 +42,17 @@ class Options:
             elif opt == '-f':
                 self.force = True
             elif opt in ("--workingdir"):
-                # self.workingDir = arg
                 self.workingDir = pathlib.Path(arg)
+            elif opt in ("-v", "--version"):
+                self.printVersionAndExit = True
+            elif opt in ("--xsd-directory"):
+                self.xsdDir = pathlib.Path(arg)
 
     def printHelp(self):
         print('''
-            -h                  print this help and exit.
-            -f                  force download. Will replace the file if it already exists. Default is False.
-            --workingdir path   local working directory
+            -h                      print this help and exit.   
+            -v, --version           print application version and exit.
+            -f                      force download. Will replace the file if it already exists. Default is False.
+            --workingdir path       local working directory
+            --xsd-directory path    path to xsd schema files location
             ''')

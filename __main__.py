@@ -12,6 +12,8 @@ from options import Options
 from logger import Logger
 from eutl import *
 
+eutl_parser_version = "1.0.2"
+
 def check_preconditions(options):
     if not options.workingDir.is_dir():
         os.makedirs(options.workingDir)
@@ -19,7 +21,14 @@ def check_preconditions(options):
         os.makedirs(options.localTListPath())
     if not options.localTrustCertPath().is_dir():
         os.makedirs(options.localTrustCertPath())
+    if not (options.xsdDir / "ts_119612v020201_201601xsd.xsd").exists():
+        Logger.LogError("Could not find schema definition files")
+        return False
     return True
+
+def printVersion():
+    msg = "eutl_parser v{0}".format(eutl_parser_version)
+    print(msg)
 
 def main(argv):
 
@@ -27,14 +36,18 @@ def main(argv):
     options.workingDir = pathlib.Path("./.download")
     options.parseCommandLine(argv)
 
-    validationSchema = "schemas/ts_119612v020201_201601xsd.xsd"
+    eutl_schema_path = options.xsdDir / "ts_119612v020201_201601xsd.xsd"
+
+    if options.printVersionAndExit:
+        printVersion()
+        sys.exit()
 
     if not check_preconditions(options):
-        Logger.LogError("main: preconditions not satisfied, exiting.")
+        Logger.LogError("Preconditions not satisfied, exiting")
         return False
 
     try:
-        EuTL = TrustList(options.urlLotl, MimeType.Xml, "EU", validationSchema)
+        EuTL = TrustList( options.urlLotl, MimeType.Xml, "EU", str(eutl_schema_path) )
         EuTL.Update(options.localTListPath(), options.force)
         EuTL.DownloadChildren()
         EuTL.PostProcess(options.localCachePath())
