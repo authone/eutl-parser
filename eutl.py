@@ -298,6 +298,14 @@ class TrustList:
             self.Status = ListStatus.NotDownloaded
             Logger.LogException(
                 "Failed to download list {0}".format(self.UrlLocation), ex)
+    
+    def ValidateWithSchema(self):
+        if(self.Status != ListStatus.Success):
+            Logger.LogInfo("Will not validate list {0}: Staus is {1} ".format(
+                            self.LocalName, self.Status))
+            return False
+
+        return True
 
     def Parse(self):
         if(self.Status != ListStatus.Success):
@@ -328,8 +336,9 @@ class TrustList:
             node = tree.find(TrustList.xpSqNumber)
             self.SeqNumber = node.text
 
+            # After Brexit, UK lists have an empty NextUpdate
             node = tree.find(TrustList.xpNextUpdate)
-            self.NextUpdate = node.text
+            self.NextUpdate = node.text if node is not None else ""
 
             node = tree.find(TrustList.xpType)
             self.TSLType = TrustListType.get_type_from_string(node.text)
@@ -520,13 +529,14 @@ class TrustList:
                 continue
 
             if(not tl.OperatorTeritory or not tl.OperatorName or not tl.LocalName or not tl.UrlLocation or not tl.NextUpdate or not tl.TypeVersion or not tl.SeqNumber):
-                print(tl)
+                Logger.LogInfo("Some informations are missing in list " + tl.LocalName)
+
             tl_attrs = {
                 "cc": tl.OperatorTeritory,
                 "operator": tl.OperatorName,
                 "name": tl.LocalName,
                 "uri": tl.UrlLocation,
-                "nextupdate": tl.NextUpdate,
+                "nextupdate": tl.NextUpdate if tl.NextUpdate is not None else "",
                 "type": tl.TypeVersion, 
                 "version": tl.SeqNumber
             }
