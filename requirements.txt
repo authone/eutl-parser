@@ -15,7 +15,7 @@ pycparser==2.20
 requests==2.25.1
 setuptools==49.2.1
 six==1.14.0
-urllib3==1.26.3
+urllib3==1.26.4
 virtualenv==20.4.2
 virtualenv-clone==0.5.4
 xmlschema==1.5.3
