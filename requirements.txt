@@ -8,14 +8,14 @@ docopt==0.6.2
 elementpath==2.2.0
 filelock==3.0.12
 idna==2.10
-pip==21.1
+pip>=21.1
 pipenv==2020.11.15
 pipreqs==0.4.10
 pycparser==2.20
 requests==2.25.1
 setuptools==49.2.1
 six==1.14.0
-urllib3==1.26.5
+urllib3>=1.26.5
 virtualenv==20.4.2
 virtualenv-clone==0.5.4
 xmlschema==1.5.3

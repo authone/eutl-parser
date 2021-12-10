@@ -451,6 +451,64 @@ class TrustList:
             for tslist in self.ListsOfTrust:
                 tslist.Print()
 
+    def PrintStatistics(self):
+        if(self.TSLType != TrustListType.ListOfTheLists):
+            print("This is not the root list")
+            return False
+        
+        if(not self.AllServices):
+            print("This is not the root list")
+            return False
+
+        QC_CA_n = 0
+        QC_OCSP_n = 0
+        QC_CRL_n = 0
+        Q_TST_n = 0
+        Q_EDS_n = 0
+        Q_REM_n = 0
+        Q_PSES_n = 0
+        Q_QESVAL_n = 0
+
+        granted_QC_CA_n = 0
+        national_QC_CA_n = 0
+        granted_QC_OCSP_n = 0
+        national_QC_OCSP_n = 0
+
+        for service in self.AllServices:
+            if(service.ServiceTypeId == TspServiceType.QC_CA):
+                QC_CA_n += 1
+                if(service.ServiceCurrentStatusId == TspServiceStatusType.Granted):
+                    granted_QC_CA_n += 1
+                if(service.ServiceCurrentStatusId == TspServiceStatusType.NationalLevelRecognised):
+                    national_QC_CA_n += 1
+            elif(service.ServiceTypeId == TspServiceType.QC_OCSP):
+                QC_OCSP_n += 1
+                if(service.ServiceCurrentStatusId == TspServiceStatusType.Granted):
+                    granted_QC_OCSP_n += 1
+                if(service.ServiceCurrentStatusId == TspServiceStatusType.NationalLevelRecognised):
+                    national_QC_OCSP_n += 1
+            elif(service.ServiceTypeId == TspServiceType.QC_CRL):
+                QC_CRL_n += 1
+            elif(service.ServiceTypeId == TspServiceType.Q_TST):
+                Q_TST_n += 1
+            elif(service.ServiceTypeId == TspServiceType.Q_EDS):
+                Q_EDS_n += 1
+            elif(service.ServiceTypeId == TspServiceType.Q_REM):
+                Q_REM_n += 1
+            elif(service.ServiceTypeId == TspServiceType.Q_PSES):
+                Q_PSES_n += 1
+            elif(service.ServiceTypeId == TspServiceType.Q_QESVAL):
+                Q_QESVAL_n += 1
+
+        print("Found QC_CA_n={0} [g={1}, n={2}], QC_OCSP_n={3} [g={4}, n={5}], QC_CRL_n={6}, Q_TST_n={7}, Q_EDS_n={8}, Q_REM_n={9}, Q_PSES_n={10}, Q_QESVAL_n={11}".format(
+                QC_CA_n, granted_QC_CA_n, national_QC_CA_n,
+                QC_OCSP_n, granted_QC_OCSP_n, national_QC_OCSP_n,
+                QC_CRL_n, Q_TST_n, Q_EDS_n, Q_REM_n, Q_PSES_n, Q_QESVAL_n))
+
+        return (QC_CA_n, QC_OCSP_n, QC_CRL_n, Q_TST_n, Q_EDS_n, Q_REM_n, Q_PSES_n, Q_QESVAL_n)
+
+
+
     def __parse_list_of_lists(self, tree):
         otls = tree.findall(TrustList.xpOtherTL)
 

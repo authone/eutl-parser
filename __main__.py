@@ -52,7 +52,7 @@ def main(argv):
         EuTL.DownloadChildren()
         EuTL.PostProcess(options.localCachePath())
         EuTL.SaveCetificatesOnDisk(options.localTrustCertPath())
-        # EuTL.Print()
+        EuTL.PrintStatistics()
 
         Logger.LogInfo("Found {0} trust service providers and {1} services.".format(
             sum(len(x.TrustServiceProviders) for x in EuTL.ListsOfTrust),
