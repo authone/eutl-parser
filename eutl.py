@@ -16,6 +16,7 @@ import os
 import io
 import ssl
 import base64
+import binascii
 import glob
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -222,7 +223,7 @@ class Certificate:
 
 
 class TrustServiceProviderService:
-    def __init__(self, cc, tsp_name, tsp_tradename, svc_name, svc_type_id, svc_status, status_start_time):
+    def __init__(self, cc, tsp_name, tsp_tradename, svc_name, svc_type_id, svc_status, status_start_time, sie):
         self.CC = cc
         self.TrustServiceProviderName = tsp_name
         self.TrustServiceProviderTradeName = tsp_tradename
@@ -233,6 +234,7 @@ class TrustServiceProviderService:
         self.ServiceCurrentStatusStartTime = status_start_time
         # self.Certificate = None
         self.Certificates = []
+        self.sie = sie if sie is not None else ""
 
 
 class TrustServiceProvider:
@@ -559,6 +561,20 @@ class TrustList:
                 # node_svc_x509_subj = node_svc.find(
                 #     "{0}ServiceDigitalIdentity/{0}DigitalId/{0}X509SubjectName".format(EutlNS.NS1.value))
 
+
+                # extract ServiceInformationExtenstions in xml format (transform it into b64) and store it in the trust_services xml
+                # the consumer application will get this xml info, parse it and use it accordingly
+                node_sie_b64 = None
+                node_sie = node_svc.find(
+                    "{0}ServiceInformationExtensions".format(EutlNS.NS1.value))
+                if (node_sie is not None):
+                    xmlstr = ET.tostring(node_sie, encoding='utf8', method='xml')
+                    node_sie_b64 = binascii.b2a_base64(xmlstr).decode()
+                
+
+
+
+
                 svc = TrustServiceProviderService(
                     tsp.CC,
                     tsp.TrustServiceProviderName,
@@ -566,7 +582,8 @@ class TrustList:
                     get_text_or_empty(node_svc_name),
                     get_text_or_empty(node_svc_type),
                     get_text_or_empty(node_svc_status),
-                    get_text_or_empty(node_svc_status_begin)
+                    get_text_or_empty(node_svc_status_begin),
+                    node_sie_b64
                 )
 
                 # TODO: should we validate list structure here?
@@ -637,6 +654,7 @@ class TrustList:
                     "status": svc.ServiceCurrentStatusId.value,
                     "begin": svc.ServiceCurrentStatusStartTime,
                     "x509fingerprintsha1": certificate.FingerprintSHA1,
+                    "sie": svc.sie,
                     # "x509valueb64": svc.Certificates[0].Value if svc.Certificates else ""
                 }
                 elem_svc = ET.SubElement(elem_root, 'digitalid', svc_attrs)
