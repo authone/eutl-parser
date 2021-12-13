@@ -12,7 +12,7 @@ from options import Options
 from logger import Logger
 from eutl import *
 
-eutl_parser_version = "1.1.0"
+eutl_parser_version = "1.0.3"
 
 def check_preconditions(options):
     if not options.workingDir.is_dir():
