@@ -33,3 +33,6 @@ Implemented service history: it represents the previous service status at a spec
 
 v1.1.1
 Added Service Digital Identity, also exported in trust_services.xml The SDI can be of 4 types: X509Certificate, X509SubjectName, X509SKI (key identifier), KeyValue (public key value)
+
+v1.1.2
+Refactory
