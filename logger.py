@@ -1,5 +1,6 @@
 import traceback
 import sys
+import pdb
 
 class Logger:
     @staticmethod
@@ -20,3 +21,7 @@ class Logger:
         print('-'*60)
         traceback.print_exc(file=sys.stdout)
         print('-'*60)
+        # extype, value, tb = sys.exc_info()
+        # pdb.post_mortem(tb)
+        # print('-'*60)
+

@@ -17,6 +17,7 @@ class Options:
         self.workingDir = pathlib.Path('/tmp/etsi-plugtests/etl')
         self.xsdDir = pathlib.Path("schemas")
         self.force = False
+        self.noValidation = False
         self.printVersionAndExit = False
 
     def localTListPath(self):
@@ -31,7 +32,7 @@ class Options:
     def parseCommandLine(self, argv):
         try:
             opts, args = getopt.getopt(
-                argv, "hvf", ["version", "workingdir=", "xsd-directory="])
+                argv, "hvft", ["version", "workingdir=", "xsd-directory="])
         except getopt.GetoptError:
             self.printHelp()
             sys.exit(2)
@@ -41,6 +42,8 @@ class Options:
                 sys.exit()
             elif opt == '-f':
                 self.force = True
+            elif opt == '-t':
+                self.noValidation = True
             elif opt in ("--workingdir"):
                 self.workingDir = pathlib.Path(arg)
             elif opt in ("-v", "--version"):
@@ -53,6 +56,7 @@ class Options:
             -h                      print this help and exit.   
             -v, --version           print application version and exit.
             -f                      force download. Will replace the file if it already exists. Default is False.
+            -t                      Trust the file; do not perform validation. Default is false (perform validation)
             --workingdir path       local working directory
             --xsd-directory path    path to xsd schema files location
             ''')

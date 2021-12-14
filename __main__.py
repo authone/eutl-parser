@@ -12,7 +12,7 @@ from options import Options
 from logger import Logger
 from eutl import *
 
-eutl_parser_version = "1.0.3"
+eutl_parser_version = "1.1.1"
 
 def check_preconditions(options):
     if not options.workingDir.is_dir():
@@ -48,7 +48,7 @@ def main(argv):
 
     try:
         EuTL = TrustList( options.urlLotl, MimeType.Xml, "EU", str(eutl_schema_path) )
-        EuTL.Update(options.localTListPath(), options.force)
+        EuTL.Update(options.localTListPath(), options.force, options.noValidation)
         EuTL.DownloadChildren()
         EuTL.PostProcess(options.localCachePath())
         EuTL.SaveCetificatesOnDisk(options.localTrustCertPath())

@@ -176,7 +176,15 @@ class TspServiceStatusType(StringEnumType):
     NationalLevelDeprecated = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/deprecatedatnationallevel"
     Granted = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted"
     Withdrawn = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/withdrawn"
-
+    UnderSupervision = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/undersupervision"
+    SupervisionInCessation = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/supervisionincessation"
+    SupervisionCeased = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/supervisionceased"
+    SupervisionRevoked = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/supervisionrevoked"
+    Accredited = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/accredited"
+    AccreditationCeased = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/accreditationceased"
+    AccreditationRevoked = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/accreditationrevoked"
+    SetByNationalLaw = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/setbynationallaw"
+    DeprecatedByNationalLaw = "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/deprecatedbynationallaw"
 
 @unique
 class ListStatus(Enum):
@@ -186,6 +194,14 @@ class ListStatus(Enum):
     StructureError = 3
     SignatureNotValid = 4
 
+@unique
+class SdiType(Enum):
+    SDI_X509Certificate = 0
+    SDI_X509SubjectName = 1
+    SDI_X509SKI = 2
+    SDI_KeyValue = 3
+    def __str__(self):
+        return self._name_
 
 __q_services = {
     "http://uri.etsi.org/TrstSvc/Svctype/CA/QC": True,
@@ -200,6 +216,10 @@ __q_services = {
 def IsQualifiedService(str_service_type):
     return "true" if __q_services.get(str_service_type) else "false"
 
+class ServiceDigitalIdentity:
+    def __init__(self, sdi_type, value) -> None:
+        self.SdiType = sdi_type
+        self.Value = value
 
 class Certificate:
     def __init__(self, value, subject=None):
@@ -221,20 +241,24 @@ class Certificate:
         self.Subject = subj_attrs[0].value
 
 
+class BaseTrustServiceProviderService:
+    def __init__(self, svc_name, svc_type_id, svc_status, status_start_time, sie):
+        self.ServiceName = svc_name
+        self.ServiceTypeId = TspServiceType.get_type_from_string(svc_type_id)
+        self.ServiceStatusId = TspServiceStatusType.get_type_from_string(
+            svc_status)
+        self.ServiceStatusStartTime = status_start_time
+        self.sie = sie if sie is not None else ""
+        self.ServiceDigitalIdentity = []
 
-class TrustServiceProviderService:
+class TrustServiceProviderService (BaseTrustServiceProviderService):
     def __init__(self, cc, tsp_name, tsp_tradename, svc_name, svc_type_id, svc_status, status_start_time, sie):
+        super(TrustServiceProviderService, self).__init__(svc_name, svc_type_id, svc_status, status_start_time, sie)
         self.CC = cc
         self.TrustServiceProviderName = tsp_name
         self.TrustServiceProviderTradeName = tsp_tradename
-        self.ServiceName = svc_name
-        self.ServiceTypeId = TspServiceType.get_type_from_string(svc_type_id)
-        self.ServiceCurrentStatusId = TspServiceStatusType.get_type_from_string(
-            svc_status)
-        self.ServiceCurrentStatusStartTime = status_start_time
-        # self.Certificate = None
         self.Certificates = []
-        self.sie = sie if sie is not None else ""
+        self.History = []
 
 
 class TrustServiceProvider:
@@ -277,6 +301,7 @@ class TrustList:
         self.NextUpdate = None
         self.Signature = None
         self.ForceDownload = False
+        self.NoValidation = False
         self.LocalWD = None
         self.ChildrenGenericCount = 0
         self.ChildrenLOTLCount = 0
@@ -289,7 +314,8 @@ class TrustList:
         self.eutlschema = xmlschema.XMLSchema(self.xsdPath, )
 
 
-    def Update(self, localwd, force):
+    def Update(self, localwd, force, noValidation):
+        self.NoValidation = noValidation
         self.Download(localwd, force)
         self.ValidateWithSchema()
         self.Parse()
@@ -310,7 +336,7 @@ class TrustList:
                 "Failed to download list {0}".format(self.UrlLocation), ex)
     
     def ValidateWithSchema(self):
-        if(self.Status != ListStatus.Success):
+        if(self.Status != ListStatus.Success or self.NoValidation):
             Logger.LogInfo("Will not validate list {0}: Staus is {1} ".format(
                             self.LocalName, self.Status))
             return False
@@ -479,15 +505,15 @@ class TrustList:
         for service in self.AllServices:
             if(service.ServiceTypeId == TspServiceType.QC_CA):
                 QC_CA_n += 1
-                if(service.ServiceCurrentStatusId == TspServiceStatusType.Granted):
+                if(service.ServiceStatusId == TspServiceStatusType.Granted):
                     granted_QC_CA_n += 1
-                if(service.ServiceCurrentStatusId == TspServiceStatusType.NationalLevelRecognised):
+                if(service.ServiceStatusId == TspServiceStatusType.NationalLevelRecognised):
                     national_QC_CA_n += 1
             elif(service.ServiceTypeId == TspServiceType.QC_OCSP):
                 QC_OCSP_n += 1
-                if(service.ServiceCurrentStatusId == TspServiceStatusType.Granted):
+                if(service.ServiceStatusId == TspServiceStatusType.Granted):
                     granted_QC_OCSP_n += 1
-                if(service.ServiceCurrentStatusId == TspServiceStatusType.NationalLevelRecognised):
+                if(service.ServiceStatusId == TspServiceStatusType.NationalLevelRecognised):
                     national_QC_OCSP_n += 1
             elif(service.ServiceTypeId == TspServiceType.QC_CRL):
                 QC_CRL_n += 1
@@ -531,6 +557,17 @@ class TrustList:
 
             self.ListsOfTrust.append(trustList)
 
+    def __get_sie_from_node(self, tree):
+        if( tree is None ):
+            return ""
+        node_sie_b64 = ""
+        node_sie = tree.find(
+            "{0}ServiceInformationExtensions".format(EutlNS.NS1.value))
+        if (node_sie is not None):
+            xmlstr = ET.tostring(node_sie, encoding='utf8', method='xml')
+            node_sie_b64 = binascii.b2a_base64(xmlstr).decode()
+        return node_sie_b64
+
     def __parse_list_of_generic(self, tree):
         nodes = tree.findall(TrustList.xpTsps)
         for node in nodes:
@@ -545,34 +582,26 @@ class TrustList:
             self.TrustServiceProviders.append(tsp)
 
             node_services = node.findall(
-                "{0}TSPServices/{0}TSPService/{0}ServiceInformation".format(EutlNS.NS1.value))
+                "{0}TSPServices/{0}TSPService".format(EutlNS.NS1.value))
 
             for node_svc in node_services:
                 node_svc_name = node_svc.find(
-                    "{0}ServiceName/{0}Name".format(EutlNS.NS1.value))
+                    "{0}ServiceInformation/{0}ServiceName/{0}Name".format(EutlNS.NS1.value))
                 node_svc_type = node_svc.find(
-                    "{0}ServiceTypeIdentifier".format(EutlNS.NS1.value))
+                    "{0}ServiceInformation/{0}ServiceTypeIdentifier".format(EutlNS.NS1.value))
                 node_svc_status = node_svc.find(
-                    "{0}ServiceStatus".format(EutlNS.NS1.value))
+                    "{0}ServiceInformation/{0}ServiceStatus".format(EutlNS.NS1.value))
                 node_svc_status_begin = node_svc.find(
-                    "{0}StatusStartingTime".format(EutlNS.NS1.value))
+                    "{0}ServiceInformation/{0}StatusStartingTime".format(EutlNS.NS1.value))
                 node_svc_x509_vals = node_svc.findall(
-                    "{0}ServiceDigitalIdentity/{0}DigitalId/{0}X509Certificate".format(EutlNS.NS1.value))
+                    "{0}ServiceInformation/{0}ServiceDigitalIdentity/{0}DigitalId/{0}X509Certificate".format(EutlNS.NS1.value))
                 # node_svc_x509_subj = node_svc.find(
                 #     "{0}ServiceDigitalIdentity/{0}DigitalId/{0}X509SubjectName".format(EutlNS.NS1.value))
 
 
                 # extract ServiceInformationExtenstions in xml format (transform it into b64) and store it in the trust_services xml
                 # the consumer application will get this xml info, parse it and use it accordingly
-                node_sie_b64 = None
-                node_sie = node_svc.find(
-                    "{0}ServiceInformationExtensions".format(EutlNS.NS1.value))
-                if (node_sie is not None):
-                    xmlstr = ET.tostring(node_sie, encoding='utf8', method='xml')
-                    node_sie_b64 = binascii.b2a_base64(xmlstr).decode()
-                
-
-
+                node_sie_b64 = self.__get_sie_from_node(node_svc)
 
 
                 svc = TrustServiceProviderService(
@@ -586,13 +615,67 @@ class TrustList:
                     node_sie_b64
                 )
 
-                # TODO: should we validate list structure here?
+                # Do service history
+                self.__parse_service_history(node_svc, svc)
+
+                ## TODO: should we validate list structure here?
+                ## TODO: we should check this: as of ts_119612, sec. 5.5.4, ServiceCurrentStatus shall be:
+                ##  i. The identifier of the status of the services of a type specified in clause 5.5.1.1 shall be 
+                #       either "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/granted" or 
+                #       "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/withdrawn" as defined in clause D.5.
+                ## ii. The identifier of the status of the services of a type specified in clause 5.5.1.2 or in clause 5.5.1.3 shall be 
+                #       either "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/recognisedatnationallevel" or 
+                #       "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/deprecatedatnationallevel" as defined in clause D.5.
                  
                 if(node_svc_x509_vals is not None):
                     for value in node_svc_x509_vals:      
                         svc.Certificates.append( Certificate(value.text) )
                 tsp.Services.append(svc)
     
+    def __parse_service_history(self, node_svc, svc):
+        nodes_history = node_svc.findall(
+            "{0}ServiceHistory/{0}ServiceHistoryInstance".format(EutlNS.NS1.value))
+        for node_history in nodes_history:
+            node_svc_history_type = node_history.find("{0}ServiceTypeIdentifier".format(EutlNS.NS1.value))
+            node_svc_history_name = node_history.find("{0}ServiceName/{0}Name".format(EutlNS.NS1.value))
+            node_svc_history_status = node_history.find("{0}ServiceStatus".format(EutlNS.NS1.value))
+            node_svc_history_status_begin = node_history.find("{0}StatusStartingTime".format(EutlNS.NS1.value))
+            svc_history_sie_b64 = self.__get_sie_from_node(node_history)
+
+            svc_history = BaseTrustServiceProviderService(
+                get_text_or_empty(node_svc_history_name),
+                get_text_or_empty(node_svc_history_type),
+                get_text_or_empty(node_svc_history_status),
+                get_text_or_empty(node_svc_history_status_begin),
+                svc_history_sie_b64
+                )
+
+            self.__parse_service_digital_identity(node_history, svc_history)
+
+            svc.History.append(svc_history)
+
+    def __parse_service_digital_identity(self, node_svc_history, svc_history):
+        nodes_sdi = node_svc_history.findall("{0}ServiceDigitalIdentity/{0}DigitalId".format(EutlNS.NS1.value))
+        for node_sdi in nodes_sdi:
+            node_x509Certificate = node_sdi.find("{0}X509Certificate".format(EutlNS.NS1.value))
+            node_x509SubjectName = node_sdi.find("{0}X509SubjectName".format(EutlNS.NS1.value))
+            node_x509SKI = node_sdi.find("{0}X509SKI".format(EutlNS.NS1.value))
+            node_KeyValue = node_sdi.find("{0}KeyValue".format(EutlNS.NS1.value))
+            
+            sdi = None
+            if( node_x509Certificate is not None):
+                sdi = ServiceDigitalIdentity(SdiType.SDI_X509Certificate, get_text_or_empty(node_x509Certificate))
+            if( node_x509SubjectName is not None):
+                sdi = ServiceDigitalIdentity(SdiType.SDI_X509SubjectName, get_text_or_empty(node_x509SubjectName))
+            if( node_x509SKI is not None):
+                sdi = ServiceDigitalIdentity(SdiType.SDI_X509SKI, get_text_or_empty(node_x509SKI))
+            if( node_KeyValue is not None):
+                sdi = ServiceDigitalIdentity(SdiType.SDI_KeyValue, get_text_or_empty(node_KeyValue))
+
+            # TODO: do the same for service current SDIs: that is replace the field Certificates[] with ServiceDigitalIdentity[] and populate it
+            svc_history.ServiceDigitalIdentity.append(sdi)
+
+
     def __get_all_services(self):
         all_services = []
         for tlist in self.ListsOfTrust:
@@ -651,12 +734,29 @@ class TrustList:
                     "servicename": svc.ServiceName,
                     "type": svc.ServiceTypeId.value,
                     "isqualified": IsQualifiedService(svc.ServiceTypeId.value),
-                    "status": svc.ServiceCurrentStatusId.value,
-                    "begin": svc.ServiceCurrentStatusStartTime,
+                    "status": svc.ServiceStatusId.value,
+                    "begin": svc.ServiceStatusStartTime,
                     "x509fingerprintsha1": certificate.FingerprintSHA1,
                     "sie": svc.sie,
                     # "x509valueb64": svc.Certificates[0].Value if svc.Certificates else ""
                 }
                 elem_svc = ET.SubElement(elem_root, 'digitalid', svc_attrs)
+
+                for svc_history in svc.History:
+                    svc_history_attrs = {
+                        "servicename": svc_history.ServiceName,
+                        "type": svc_history.ServiceTypeId.value,
+                        "status": svc_history.ServiceStatusId.value,
+                        "begin": svc_history.ServiceStatusStartTime,
+                        "sie": svc_history.sie,
+                    }
+                    elem_svc_history = ET.SubElement(elem_svc, "svc_history", svc_history_attrs)
+
+                    for sdi in svc_history.ServiceDigitalIdentity:
+                        svc_sdi_attrs = {
+                            "sdi_type": str(sdi.SdiType),
+                            "value": sdi.Value
+                        }
+                        elem_svc_sdi = ET.SubElement(elem_svc_history, "sdi", svc_sdi_attrs)
 
         save_xml_to_file(elem_root, path / "trust_services.xml")
