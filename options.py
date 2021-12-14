@@ -5,8 +5,10 @@ import sys
 '''
 Options class to parse command line parameters:
             -h                      print this help and exit.   
-            -v                      print application version and exit.
+            -v, --version           print application version and exit.
             -f                      force download. Will replace the file if it already exists. Default is False.
+            -t                      Trust the file; do not perform validation. Default is false (perform validation)
+            -p                      Create a package archive containing all certificates and services list
             --workingdir path       local working directory
             --xsd-directory path    path to xsd schema files location
 '''
@@ -19,6 +21,7 @@ class Options:
         self.force = False
         self.noValidation = False
         self.printVersionAndExit = False
+        self.createPackage = False
 
     def localTListPath(self):
         return self.workingDir / "trustlists"
@@ -32,7 +35,7 @@ class Options:
     def parseCommandLine(self, argv):
         try:
             opts, args = getopt.getopt(
-                argv, "hvft", ["version", "workingdir=", "xsd-directory="])
+                argv, "hvftp", ["package", "version", "workingdir=", "xsd-directory="])
         except getopt.GetoptError:
             self.printHelp()
             sys.exit(2)
@@ -44,6 +47,8 @@ class Options:
                 self.force = True
             elif opt == '-t':
                 self.noValidation = True
+            elif opt in ("-p", "--package"):
+                self.createPackage = True
             elif opt in ("--workingdir"):
                 self.workingDir = pathlib.Path(arg)
             elif opt in ("-v", "--version"):
@@ -57,6 +62,7 @@ class Options:
             -v, --version           print application version and exit.
             -f                      force download. Will replace the file if it already exists. Default is False.
             -t                      Trust the file; do not perform validation. Default is false (perform validation)
+            -p, --package           Create a package archive containing all certificates and services list
             --workingdir path       local working directory
             --xsd-directory path    path to xsd schema files location
             ''')

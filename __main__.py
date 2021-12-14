@@ -8,6 +8,7 @@
 import sys
 import pathlib
 import os
+from eutl_pack import CreatePackage
 
 from options import Options
 from logger import Logger
@@ -54,6 +55,9 @@ def main(argv):
         EuTL.PostProcess(options.localCachePath())
         EuTL.SaveCetificatesOnDisk(options.localTrustCertPath())
         EuTL.PrintStatistics()
+        if(options.createPackage):
+            package_name = "eutl_cache-v{0}-s{1}.zip".format(EuTL.TypeVersion, EuTL.SeqNumber)
+            CreatePackage(package_name, EuTL, options)
 
         Logger.LogInfo("Found {0} trust service providers and {1} services.".format(
             sum(len(x.TrustServiceProviders) for x in EuTL.ListsOfTrust),

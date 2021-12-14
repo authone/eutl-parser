@@ -103,6 +103,9 @@ class TrustList:
         EutlNS.NS1.value)
 
     def __init__(self, Url, mime, cc, xsdPath):
+        self.FileCache_TrustServices = "trust_services.xml"
+        self.FileCache_TrustLists = "trust_lists.xml"
+
         self.UrlLocation = Url
         self.LocalPath = None
         self.xsdPath = xsdPath
@@ -530,13 +533,18 @@ class TrustList:
             }
             elem_tl = ET.SubElement(elem_root, 'list', tl_attrs)
 
-        save_xml_to_file (elem_root, path / "trust_lists.xml")
+        save_xml_to_file (elem_root, path / self.FileCache_TrustLists)
         
     def __save_xml_certificates_cache(self, path):
         if( self.AllServices is None or len(self.AllServices) == 0):
             return False
 
-        elem_root = ET.Element('trustservicesdigitalids', {"nextupdate": self.NextUpdate})
+        root_attrs = {
+            "nextupdate": self.NextUpdate,
+            "version": self.TypeVersion,
+            "seq": self.SeqNumber
+        }
+        elem_root = ET.Element('trustservicesdigitalids', root_attrs)
 
         for svc in self.AllServices:
             if( not svc.Certificates ):
@@ -575,4 +583,4 @@ class TrustList:
                         }
                         elem_svc_sdi = ET.SubElement(elem_svc_history, "sdi", svc_sdi_attrs)
 
-        save_xml_to_file(elem_root, path / "trust_services.xml")
+        save_xml_to_file(elem_root, path / self.FileCache_TrustServices)
