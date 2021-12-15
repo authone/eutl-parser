@@ -570,6 +570,7 @@ class TrustList:
                     svc_history_attrs = {
                         "servicename": svc_history.ServiceName,
                         "type": svc_history.ServiceTypeId.value,
+                        "isqualified": IsQualifiedService(svc.ServiceTypeId.value),
                         "status": svc_history.ServiceStatusId.value,
                         "begin": svc_history.ServiceStatusStartTime,
                         "sie": svc_history.sie,

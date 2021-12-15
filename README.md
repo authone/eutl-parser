@@ -3,7 +3,20 @@
 A python application to parse EUTL (European Trust Lists) and extract qualified and unqualified service identities (digital certificates).
 In also creates an XML index file of trust service providers
 
+When implementing a qualified signatures validation service, one of the requirements is to take into consideration trust anchors defined by ETSI 119 612.
+This application has three main purposes:
+
+1. To download, validate the trust lists
+2. To extract from each trust list the trust anchors represented by X509Certificates and save them on disk
+3. To introduce a layer of abstraction between EUTL format and validation service, such that to protect
+   the implemented Validation Service from possible future changes in list format (e.g. v6)
+
+The author encourages developer to participate in the implementation of this application, to add other necessary missing features.
+the participation if free, for the benefit of everyone else.
+
 # ETSI Standards:
+
+ts_119612
 
 # EU Regulation
 
