@@ -49,3 +49,6 @@ Added Service Digital Identity, also exported in trust_services.xml The SDI can 
 
 v1.1.2
 Refactory
+
+v1.1.3
+Added isqualified attribute to service history
