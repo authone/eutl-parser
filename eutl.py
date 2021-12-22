@@ -12,77 +12,28 @@
     @description: Download European Trust Lists and parse it to obtain containing certificates
                     It all starts from the root of the lists: 'https://ec.europa.eu/tools/lotl/eu-lotl.xml'
 '''
-import base64
 import binascii
 # import glob
 import xml.etree.ElementTree as ET
 import xmlschema
 # from xml.dom import minidom
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
 
 from logger import Logger
 from eutl_io import *
 from eutl_types import *
-
+from eutl_trust_service import *
 
 def get_text_or_empty(node) -> str:
     return node.text if node is not None else ""
 
-
-
-class ServiceDigitalIdentity:
-    def __init__(self, sdi_type, value) -> None:
-        self.SdiType = sdi_type
-        self.Value = value
-
-class Certificate:
-    def __init__(self, value, subject=None):
-        self.Subject = subject
-        self.Value = value
-        self.Bytes = None
-        self.FingerprintSHA1 = None
-        if( self.Value is None):
-            raise Exception("This certificate has no value {0}".format(self.Subject))
-
-        self.Bytes = base64.b64decode(self.Value)
-        Cert_x509 = x509.load_der_x509_certificate(self.Bytes, default_backend())
-        self.FingerprintSHA1 = Cert_x509.fingerprint(hashes.SHA1()).hex()
-        subj_attrs = Cert_x509.subject.get_attributes_for_oid(
-            x509.NameOID.COMMON_NAME)
-        if(not subj_attrs):
-            subj_attrs = Cert_x509.subject.get_attributes_for_oid(
-                x509.NameOID.ORGANIZATION_NAME)
-        self.Subject = subj_attrs[0].value
-
-
-class BaseTrustServiceProviderService:
-    def __init__(self, svc_name, svc_type_id, svc_status, status_start_time, sie):
-        self.ServiceName = svc_name
-        self.ServiceTypeId = TspServiceType.get_type_from_string(svc_type_id)
-        self.ServiceStatusId = TspServiceStatusType.get_type_from_string(
-            svc_status)
-        self.ServiceStatusStartTime = status_start_time
-        self.sie = sie if sie is not None else ""
-        self.ServiceDigitalIdentity = []
-
-class TrustServiceProviderService (BaseTrustServiceProviderService):
-    def __init__(self, cc, tsp_name, tsp_tradename, svc_name, svc_type_id, svc_status, status_start_time, sie):
-        super(TrustServiceProviderService, self).__init__(svc_name, svc_type_id, svc_status, status_start_time, sie)
-        self.CC = cc
-        self.TrustServiceProviderName = tsp_name
-        self.TrustServiceProviderTradeName = tsp_tradename
-        self.Certificates = []
-        self.History = []
-
-
-class TrustServiceProvider:
-    def __init__(self, cc, name, tradename):
-        self.CC = cc
-        self.TrustServiceProviderName = name
-        self.TrustServiceProviderTradeName = tradename
-        self.Services = []
+def compute_certificate_file_name(certificate, countryCode, typeId, translations):
+    subject = certificate.Subject.encode('ascii', 'replace').decode(
+                'ascii', 'replce').translate(translations)
+    file_name = countryCode + "_" + subject + "_" + \
+                typeId + "_" + \
+                certificate.FingerprintSHA1[0:10] + \
+                ".cer"
+    return file_name
 
 
 class TrustList:
@@ -131,7 +82,6 @@ class TrustList:
         self.AllServices = []
 
         self.eutlschema = xmlschema.XMLSchema(self.xsdPath, )
-
 
     def Update(self, localwd, force, noValidation):
         self.NoValidation = noValidation
@@ -212,7 +162,6 @@ class TrustList:
             self.Status = ListStatus.StructureError
             return False
 
-
         if(self.TSLType == TrustListType.ListOfTheLists):
             self.__parse_list_of_lists(tree)
         elif(self.TSLType == TrustListType.Generic):
@@ -260,16 +209,12 @@ class TrustList:
 
             if (service.Certificates):
                 for certificate in service.Certificates:
-                    subject = certificate.Subject.encode('ascii', 'replace').decode(
-                        'ascii', 'replce').translate(trantab)
-                    file_name = service.CC + "_" + subject + "_" + \
-                        service.ServiceTypeId.name + "_" + \
-                        certificate.FingerprintSHA1[0:10] + ".cer"
+
+                    file_name = compute_certificate_file_name(certificate, service.CC, service.ServiceTypeId.name, trantab)
                     file_path = base_dir / file_name
 
                     with open(file_path, "wb") as cert_file:
                         cert_file.write(certificate.Bytes)
-
 
     def Print(self):
         print("\n{0}: {1}\n\tFile: {2}\n\tUrl: {3}\n\tType Version: {4}\n\tSeqNumber: {5}\n\tNextUpdate: {6}\n\tListType: {7}\
@@ -353,8 +298,6 @@ class TrustList:
                 QC_CRL_n, Q_TST_n, Q_EDS_n, Q_REM_n, Q_PSES_n, Q_QESVAL_n))
 
         return (QC_CA_n, QC_OCSP_n, QC_CRL_n, Q_TST_n, Q_EDS_n, Q_REM_n, Q_PSES_n, Q_QESVAL_n)
-
-
 
     def __parse_list_of_lists(self, tree):
         otls = tree.findall(TrustList.xpOtherTL)
@@ -469,11 +412,11 @@ class TrustList:
                 svc_history_sie_b64
                 )
 
-            self.__parse_service_digital_identity(node_history, svc_history)
+            self.__parse_service_digital_identity(node_history, svc_history, svc)
 
             svc.History.append(svc_history)
 
-    def __parse_service_digital_identity(self, node_svc_history, svc_history):
+    def __parse_service_digital_identity(self, node_svc_history, svc_history, svc):
         nodes_sdi = node_svc_history.findall("{0}ServiceDigitalIdentity/{0}DigitalId".format(EutlNS.NS1.value))
         for node_sdi in nodes_sdi:
             node_x509Certificate = node_sdi.find("{0}X509Certificate".format(EutlNS.NS1.value))
@@ -491,9 +434,12 @@ class TrustList:
             if( node_KeyValue is not None):
                 sdi = ServiceDigitalIdentity(SdiType.SDI_KeyValue, get_text_or_empty(node_KeyValue))
 
+            if( sdi is None):
+                return
             # TODO: do the same for service current SDIs: that is replace the field Certificates[] with ServiceDigitalIdentity[] and populate it
             svc_history.ServiceDigitalIdentity.append(sdi)
-
+            if(sdi.SdiType == SdiType.SDI_X509Certificate):
+                svc.Certificates.append( Certificate(sdi.Value) )
 
     def __get_all_services(self):
         all_services = []
