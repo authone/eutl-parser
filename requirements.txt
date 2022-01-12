@@ -9,7 +9,7 @@ elementpath==2.2.0
 filelock==3.0.12
 idna==2.10
 pip>=21.1
-pipenv==2020.11.15
+pipenv==2022.1.8
 pipreqs==0.4.10
 pycparser==2.20
 requests==2.25.1
