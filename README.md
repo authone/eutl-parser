@@ -36,6 +36,18 @@ You can run the application using command `python3 .` in the application directo
 
 Check application command line parameters with `python3 . -h`
 
+# Build and run as a Docker container
+
+Build the image:
+
+`docker build -t eutl-parser .`
+
+Run the container:
+
+`docker run -v $PWD/certificates:/tmp/download eutl-parser --workingdir /tmp/download`
+
+In order to have easy access to the downloaded digital certificates you have to map a local folder inside the container using `-v local_path:container_path`. ***Container_path*** is the path where eutl_parser application downloads all the certificates. This is specified using `--workdir` argument when you run the container.
+
 # Changelog
 
 v1.0.3
