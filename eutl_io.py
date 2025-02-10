@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 
 def url_remote_file_name(url):
     items = url.split('/')
-    return items[-1]
+    return urllib.parse.unquote(items[-1])
 
 
 def make_dir(base_path, dir_name):
