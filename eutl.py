@@ -390,8 +390,11 @@ class TrustList:
                 #       "http://uri.etsi.org/TrstSvc/TrustedList/Svcstatus/deprecatedatnationallevel" as defined in clause D.5.
                  
                 if(node_svc_x509_vals is not None):
-                    for value in node_svc_x509_vals:      
-                        svc.Certificates.append( Certificate(value.text) )
+                    for value in node_svc_x509_vals:
+                        try:      
+                            svc.Certificates.append( Certificate(value.text) )
+                        except ValueError as ex:
+                            Logger.LogException("Unable to parse certificate", ex)
                 tsp.Services.append(svc)
     
     def __parse_service_history(self, node_svc, svc):
@@ -439,7 +442,10 @@ class TrustList:
             # TODO: do the same for service current SDIs: that is replace the field Certificates[] with ServiceDigitalIdentity[] and populate it
             svc_history.ServiceDigitalIdentity.append(sdi)
             if(sdi.SdiType == SdiType.SDI_X509Certificate):
-                svc.Certificates.append( Certificate(sdi.Value) )
+                try:
+                    svc.Certificates.append( Certificate(sdi.Value) )
+                except ValueError as ex:
+                    Logger.LogException("Unable to parse certificate", ex)
 
     def __get_all_services(self):
         all_services = []
