@@ -8,6 +8,10 @@ class Logger:
         print("ERROR: ", msg)
 
     @staticmethod
+    def LogWarning(msg):
+        print("WARNING: ", msg)
+
+    @staticmethod
     def LogInfo(msg):
         print("INFO: ", msg)
 
