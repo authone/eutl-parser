@@ -394,7 +394,9 @@ class TrustList:
                         try:      
                             svc.Certificates.append( Certificate(value.text) )
                         except ValueError as ex:
-                            Logger.LogException("Unable to parse certificate", ex)
+                            Logger.LogException("Unable to parse certificate: country={0} service={1}".
+                                                        format(svc.CC, svc.ServiceName),
+                                                ex )
                 tsp.Services.append(svc)
     
     def __parse_service_history(self, node_svc, svc):

@@ -50,11 +50,26 @@ def download_file(rPath, lPath, force):
 
     req = urllib.request.Request(rPath)
     req.add_header(
-        'User-Agent', "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.2 Safari/605.1.15")
-    sslcontext = ssl.SSLContext(ssl.PROTOCOL_TLS)
+        'User-Agent', "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")
+    # req.add_header('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7')
+    # req.add_header('Accept-Language', 'en-GB,en;q=0.9,el')
+    # req.add_header('Accept-Encoding', 'gzip, deflate, br, zstd')
+    # req.add_header('Connection', 'keep-alive')
+    # req.add_header('Cache-Control', 'no-cache')
+    # req.add_header('Pragma', 'no-cache')
+    # req.add_header('Upgrade-Insecure-Requests', '1')
 
-    resp = urllib.request.urlopen(url=req, context=sslcontext)
-    data = resp.read()
+
+    sslcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+    sslcontext.load_default_certs()
+
+    try:
+        resp = urllib.request.urlopen(url=req, context=sslcontext)
+        data = resp.read()  
+    except Exception as e:
+        Logger.LogException("Failed to download file {0}".format(rPath), e)
+        raise e
+    
     lFile = open(lPath, 'xb')
     lFile.write(data)
 
