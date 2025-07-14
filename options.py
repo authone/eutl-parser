@@ -22,6 +22,7 @@ class Options:
         self.noValidation = False
         self.printVersionAndExit = False
         self.createPackage = False
+        self.typeVersion = 0  # Default type version for the EUTL
 
     def localTListPath(self):
         return self.workingDir / "trustlists"
@@ -35,7 +36,7 @@ class Options:
     def parseCommandLine(self, argv):
         try:
             opts, args = getopt.getopt(
-                argv, "hvftp", ["package", "version", "workingdir=", "xsd-directory="])
+                argv, "hvftp", ["package", "version", "workingdir=", "xsd-directory=", "typeversion="])
         except getopt.GetoptError:
             self.printHelp()
             sys.exit(2)
@@ -55,6 +56,8 @@ class Options:
                 self.printVersionAndExit = True
             elif opt in ("--xsd-directory"):
                 self.xsdDir = pathlib.Path(arg)
+            elif opt in ("--typeversion"):
+                self.typeVersion = arg
 
     def printHelp(self):
         print('''
@@ -66,3 +69,4 @@ class Options:
             --workingdir path       local working directory
             --xsd-directory path    path to xsd schema files location
             ''')
+

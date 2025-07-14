@@ -14,7 +14,9 @@ from options import Options
 from logger import Logger
 from eutl import *
 
-eutl_parser_version = "1.1.3"
+eutl_parser_version = "2.0.0"
+
+# ############################################### ###############################################
 
 def check_preconditions(options):
     if not options.workingDir.is_dir():
@@ -32,13 +34,20 @@ def printVersion():
     msg = "eutl_parser v{0}".format(eutl_parser_version)
     print(msg)
 
+
+# ############################################### ###############################################
+# This is the main entry point of the script
+# It initializes the options, checks preconditions, and processes the EUTL.
+# ############################################### ###############################################
+
 def main(argv):
 
     options = Options()
     options.workingDir = pathlib.Path("./.download")
     options.parseCommandLine(argv)
-
-    eutl_schema_path = options.xsdDir / "ts_119612v020201_201601xsd.xsd"
+    eutl_schema_paths = {'5': options.xsdDir / "ts_119612v020201_201601xsd.xsd", 
+                         '6': options.xsdDir / "19612_xsd.xsd"
+                        }
 
     if options.printVersionAndExit:
         printVersion()
@@ -49,12 +58,21 @@ def main(argv):
         return False
 
     try:
-        EuTL = TrustList( options.urlLotl, MimeType.Xml, "EU", str(eutl_schema_path) )
-        EuTL.Update(options.localTListPath(), options.force, options.noValidation)
+        EuTL = TrustList( options.urlLotl, MimeType.Xml, "EU", eutl_schema_paths)
+        EuTL.Update(options.localTListPath(), options.force, options.noValidation, isLotl=True)
+        # we pinpoint the version (e.g. 5|6) to the one from LOTL
+        if(options.typeVersion != 0 and options.typeVersion != EuTL.TypeVersion):
+            Logger.LogError("Type version from options ({0}) does not match downloaded LOTL type version"
+                            " ({1}). Please check your options.".format(options.typeVersion, EuTL.TypeVersion))
+            return False
+
+        options.typeVersion = EuTL.TypeVersion
+
         EuTL.DownloadChildren()
         EuTL.PostProcess(options.localCachePath())
         EuTL.SaveCetificatesOnDisk(options.localTrustCertPath())
         EuTL.PrintStatistics()
+
         if(options.createPackage):
             package_name = "eutl_cache-v{0}-s{1}.zip".format(EuTL.TypeVersion, EuTL.SeqNumber)
             CreatePackage(package_name, EuTL, options)
@@ -64,9 +82,11 @@ def main(argv):
             len(EuTL.AllServices)))
 
         return True
+
     except Exception as ex:
         Logger.LogExceptionTrace("main: Got an error", ex)
 
+# ############################################### ###############################################
 
 if __name__ == '__main__':
     main(sys.argv[1:])

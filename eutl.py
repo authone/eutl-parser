@@ -35,6 +35,17 @@ def compute_certificate_file_name(certificate, countryCode, typeId, translations
                 ".cer"
     return file_name
 
+def preparse_lotl_version(lotl_path):
+    try:
+        tree = ET.parse(lotl_path)
+        node = tree.find(TrustList.xpVersion)
+        typeVersion = node.text
+    except AttributeError as ex:
+        Logger.LogException(
+            "Failed to parse LOTL file {0} for type version".format(lotl_path), ex)
+        return None
+    return typeVersion
+    
 
 class TrustList:
     xpOperatorTeritory = "{0}SchemeInformation/{0}SchemeTerritory".format(
@@ -53,13 +64,15 @@ class TrustList:
     xpTsps = "{0}TrustServiceProviderList/{0}TrustServiceProvider".format(
         EutlNS.NS1.value)
 
-    def __init__(self, Url, mime, cc, xsdPath):
+    eutlschema = None
+
+    def __init__(self, Url, mime, cc, xsdPaths):
         self.FileCache_TrustServices = "trust_services.xml"
         self.FileCache_TrustLists = "trust_lists.xml"
 
         self.UrlLocation = Url
         self.LocalPath = None
-        self.xsdPath = xsdPath
+        self.xsdPaths = xsdPaths
         # add country code in front if the name: some lists have the same name
         self.LocalName = cc + "-" + url_remote_file_name(self.UrlLocation)
         self.TypeVersion = None
@@ -81,11 +94,25 @@ class TrustList:
         self.TrustServiceProviders = []
         self.AllServices = []
 
-        self.eutlschema = xmlschema.XMLSchema(self.xsdPath, )
 
-    def Update(self, localwd, force, noValidation):
+    def Update(self, localwd, force, noValidation, isLotl = False):
         self.NoValidation = noValidation
         self.Download(localwd, force)
+
+        if(isLotl):
+            # we preparse the LOTL to get the type version
+            self.TypeVersion = preparse_lotl_version(self.LocalPath)
+            if(self.TypeVersion == '5'):
+                Logger.LogInfo("LOTL preparse: type version is 5")
+                TrustList.eutlschema = xmlschema.XMLSchema( str(self.xsdPaths['5']) )
+            elif(self.TypeVersion == '6'):
+                Logger.LogInfo("LOTL preparse: type version is 6")
+                TrustList.eutlschema = xmlschema.XMLSchema( str (self.xsdPaths['6']) )
+            else:
+                Logger.LogError("LOTL preparse: type version is unknown: {0}".format(self.TypeVersion))
+                self.Status = ListStatus.StructureError
+                return False
+            
         self.ValidateWithSchema()
         self.Parse()
 
@@ -110,14 +137,15 @@ class TrustList:
                             self.LocalName, self.Status))
             return False
 
-        valid = self.eutlschema.is_valid( str(self.LocalPath) )
+        valid = TrustList.eutlschema.is_valid( str(self.LocalPath) )
 
-        self.Status = ListStatus.Success if self.eutlschema.is_valid( str(self.LocalPath)) else ListStatus.SchemaError
+        self.Status = ListStatus.Success if valid else ListStatus.SchemaError
         Logger.LogInfo("Validation result for list {0} with etsi schema is {1}".format(self.LocalName, self.Status))
         
         return self.Status is ListStatus.Success 
 
     def Parse(self):
+        Logger.LogInfo("Parsing list {0} ...".format(self.LocalName))
         if(self.Status != ListStatus.Success):
             Logger.LogInfo("Will not parse list {0}: Staus is {1} ".format(
                 self.LocalName, self.Status))
@@ -137,7 +165,7 @@ class TrustList:
             node = tree.find(TrustList.xpVersion)
             self.TypeVersion = node.text
 
-            if(self.TypeVersion != "5"):
+            if(self.TypeVersion != "5" and self.TypeVersion != "6"):
                 Logger.logError("Will not parse list {0}. it has an unknown type version {1}".format(
                     self.LocalName, self.TypeVersion))
                 self.Status = ListStatus.StructureError
@@ -180,6 +208,13 @@ class TrustList:
                 lot.Download(self.LocalWD, self.ForceDownload)
                 lot.ValidateWithSchema()
                 lot.Parse()
+
+                # check versions to be consistent
+                if(lot.TypeVersion != self.TypeVersion):
+                    Logger.LogError("List {0} has a different type version {1} than the root list {2}".format(
+                        lot.LocalName, lot.TypeVersion, self.TypeVersion))
+                    lot.Status = ListStatus.StructureError
+                    continue
 
                 if(lot.TSLType == TrustListType.ListOfTheLists):
                     self.ChildrenLOTLCount += 1
@@ -300,6 +335,8 @@ class TrustList:
         return (QC_CA_n, QC_OCSP_n, QC_CRL_n, Q_TST_n, Q_EDS_n, Q_REM_n, Q_PSES_n, Q_QESVAL_n)
 
     def __parse_list_of_lists(self, tree):
+
+
         otls = tree.findall(TrustList.xpOtherTL)
 
         for tl in otls:
@@ -315,7 +352,7 @@ class TrustList:
                 continue
 
             trustList = TrustList(
-                url, MimeType.get_type_from_string(mime), cc, self.xsdPath)
+                url, MimeType.get_type_from_string(mime), cc, self.xsdPaths)
 
             self.ListsOfTrust.append(trustList)
 
@@ -394,9 +431,9 @@ class TrustList:
                         try:      
                             svc.Certificates.append( Certificate(value.text) )
                         except ValueError as ex:
-                            Logger.LogException("Unable to parse certificate: country={0} service={1}".
-                                                        format(svc.CC, svc.ServiceName),
-                                                ex )
+                            Logger.LogWarning("Unable to parse certificate: country={0} service={1} warning={2}".
+                                                        format(svc.CC, svc.ServiceName, ex))
+
                 tsp.Services.append(svc)
     
     def __parse_service_history(self, node_svc, svc):
